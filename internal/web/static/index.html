@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>slaveSim - Modbus RTU 从站模拟器</title>
+<style>
+  :root {
+    --border: #d8dde3;
+    --muted: #6b7683;
+    --bg: #f6f8fa;
+    --accent: #1f6feb;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    font-size: 14px;
+    color: #1f2328;
+    background: var(--bg);
+  }
+  header {
+    padding: 12px 20px;
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+  }
+  header h1 { font-size: 16px; margin: 0; }
+  header .hint { color: var(--muted); font-size: 12px; }
+  main { padding: 16px 20px; display: grid; gap: 16px; }
+  .card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .card > h2 {
+    margin: 0;
+    padding: 10px 14px;
+    font-size: 14px;
+    border-bottom: 1px solid var(--border);
+    background: #fbfcfd;
+  }
+  .meta {
+    padding: 8px 14px;
+    color: var(--muted);
+    font-size: 12px;
+    font-family: Consolas, "Courier New", monospace;
+    border-bottom: 1px dashed var(--border);
+  }
+  table { width: 100%; border-collapse: collapse; }
+  th, td {
+    text-align: left;
+    padding: 6px 10px;
+    border-bottom: 1px solid #eef1f4;
+    font-size: 13px;
+  }
+  th { background: #fbfcfd; font-weight: 600; color: #444d56; }
+  td.num { font-family: Consolas, "Courier New", monospace; }
+  .tag { color: var(--muted); }
+  input[type=text] {
+    width: 110px;
+    padding: 3px 6px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: Consolas, "Courier New", monospace;
+  }
+  button {
+    padding: 3px 10px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: #fff;
+    cursor: pointer;
+  }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .logs {
+    height: 320px;
+    overflow: auto;
+    padding: 8px 14px;
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    background: #0d1117;
+    color: #c9d1d9;
+  }
+  .logs .row { white-space: pre-wrap; word-break: break-all; }
+  .logs .t { color: #7d8590; }
+  .logs .rx { color: #79c0ff; }
+  .logs .tx { color: #7ee787; }
+  .logs .warn { color: #e3b341; }
+  .logs .err { color: #ff7b72; }
+  .toolbar { padding: 8px 14px; display: flex; gap: 8px; align-items: center; }
+</style>
+</head>
+<body>
+<header>
+  <h1>slaveSim</h1>
+  <span class="hint">Modbus RTU 从站模拟器 · 虚拟串口由 PTY 提供</span>
+</header>
+
+<main>
+  <div id="buses"></div>
+
+  <div class="card">
+    <h2>报文日志</h2>
+    <div class="toolbar">
+      <button id="pause">暂停</button>
+      <button id="clear">清空</button>
+      <span class="hint" id="conn">连接中…</span>
+    </div>
+    <div class="logs" id="logs"></div>
+  </div>
+</main>
+
+<script>
+let paused = false;
+let state = null;
+const logsEl = document.getElementById('logs');
+
+function fmtTime(iso) {
+  const d = new Date(iso);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+function render(state) {
+  const root = document.getElementById('buses');
+  root.innerHTML = '';
+  for (const bus of state.buses) {
+    const card = document.createElement('div');
+    card.className = 'card';
+    const h = document.createElement('h2');
+    h.textContent = `总线 ${bus.name}`;
+    card.appendChild(h);
+
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.textContent = `下位机 serial.device = ${bus.link_path}   →   实际设备 ${bus.slave_path}`;
+    card.appendChild(meta);
+
+    for (const slave of bus.slaves) {
+      const t = document.createElement('table');
+      t.innerHTML = `<thead><tr>
+        <th>站号</th><th>功能码</th><th>地址</th><th>类型</th><th>点名</th>
+        <th>当前值</th><th>原始字节</th><th>手动设置</th>
+      </tr></thead>`;
+      const tb = document.createElement('tbody');
+      slave.registers.forEach((reg, i) => {
+        const tr = document.createElement('tr');
+
+        const tdId = document.createElement('td');
+        tdId.textContent = i === 0 ? String(slave.device_id) : '';
+        tr.appendChild(tdId);
+
+        for (const v of [reg.function, String(reg.address), reg.type]) {
+          const td = document.createElement('td');
+          td.textContent = v;
+          td.className = 'num';
+          tr.appendChild(td);
+        }
+
+        const tdTag = document.createElement('td');
+        tdTag.className = 'tag';
+        tdTag.textContent = reg.tag || '';
+        tr.appendChild(tdTag);
+
+        const tdVal = document.createElement('td');
+        tdVal.className = 'num';
+        tdVal.textContent = reg.unit ? `${reg.value} ${reg.unit}` : String(reg.value);
+        tr.appendChild(tdVal);
+
+        const tdRaw = document.createElement('td');
+        tdRaw.className = 'num';
+        tdRaw.textContent = reg.raw;
+        tr.appendChild(tdRaw);
+
+        const tdSet = document.createElement('td');
+        if (reg.writable) {
+          const input = document.createElement('input');
+          input.type = 'text';
+          input.value = String(reg.value);
+          const btn = document.createElement('button');
+          btn.textContent = '设置';
+          btn.className = 'primary';
+          btn.onclick = () => setManual(bus.name, slave.device_id, reg, input.value);
+          tdSet.appendChild(input);
+          tdSet.appendChild(document.createTextNode(' '));
+          tdSet.appendChild(btn);
+        } else {
+          tdSet.innerHTML = '<span class="tag">只读</span>';
+        }
+        tr.appendChild(tdSet);
+
+        tb.appendChild(tr);
+      });
+      t.appendChild(tb);
+      card.appendChild(t);
+    }
+    root.appendChild(card);
+  }
+}
+
+async function refresh() {
+  try {
+    const r = await fetch('/api/state');
+    state = await r.json();
+    render(state);
+  } catch (e) {
+    console.error('获取状态失败', e);
+  }
+}
+
+async function setManual(bus, deviceId, reg, raw) {
+  const value = Number(raw);
+  if (Number.isNaN(value)) {
+    alert('请输入数字');
+    return;
+  }
+  const r = await fetch('/api/manual', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      bus: bus,
+      device_id: deviceId,
+      function: reg.function,
+      address: reg.address,
+      value: value,
+    }),
+  });
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}));
+    alert('设置失败: ' + (body.error || r.status));
+  }
+  refresh();
+}
+
+function appendLog(e) {
+  if (paused) return;
+  const div = document.createElement('div');
+  div.className = 'row';
+
+  const cls = e.level === 'warn' ? 'warn' : e.level === 'error' ? 'err' : (e.direction === '发送' ? 'tx' : 'rx');
+  const dir = e.direction ? e.direction : '';
+  const device = e.device_id ? `站号=${e.device_id} ` : '';
+
+  div.innerHTML =
+    `<span class="t">${fmtTime(e.time)}</span> ` +
+    `<span class="${cls}">[${dir || e.level}]</span> ` +
+    `${device}${e.frame ? e.frame + ' ' : ''}<span class="t">${e.summary || ''}</span>`;
+
+  const atBottom = logsEl.scrollTop + logsEl.clientHeight >= logsEl.scrollHeight - 30;
+  logsEl.appendChild(div);
+  while (logsEl.childElementCount > 2000) {
+    logsEl.removeChild(logsEl.firstChild);
+  }
+  if (atBottom) logsEl.scrollTop = logsEl.scrollHeight;
+}
+
+function connectEvents() {
+  const es = new EventSource('/api/events');
+  es.onopen = () => { document.getElementById('conn').textContent = '已连接'; };
+  es.onerror = () => { document.getElementById('conn').textContent = '连接中断，重连中…'; };
+  es.onmessage = (ev) => appendLog(JSON.parse(ev.data));
+}
+
+document.getElementById('pause').onclick = (ev) => {
+  paused = !paused;
+  ev.target.textContent = paused ? '继续' : '暂停';
+};
+document.getElementById('clear').onclick = () => { logsEl.innerHTML = ''; };
+
+refresh();
+setInterval(refresh, 2000);
+connectEvents();
+</script>
+</body>
+</html>

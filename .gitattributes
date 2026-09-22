@@ -1,0 +1,16 @@
+# 本项目面向 Linux 部署，统一使用 LF 行尾。
+#
+# 不加这条的话，Windows 上签出会得到 CRLF，而 CRLF 会引发：
+#   - Dockerfile 续行（反斜杠后带 \r）解析异常；
+#   - compose.yml 等 YAML 解析异常；
+#   - 传给远端 bash 的脚本出现 "未预期的文件结束符"（fi/done 无法识别）。
+* text=auto eol=lf
+
+# 二进制文件不做行尾转换。
+*.png  binary
+*.jpg  binary
+*.gif  binary
+*.ico  binary
+*.gz   binary
+*.zip  binary
+*.tar  binary

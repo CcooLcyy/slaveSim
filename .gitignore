@@ -1,0 +1,12 @@
+# 构建产物
+/slavesim
+/slavesim.exe
+/probe_bin
+
+# 运行时配置与日志（config.json 由 config.example.json 复制而来，含现场路径）
+/config.json
+/log/
+
+# Go 构建与测试产物
+*.test
+*.out

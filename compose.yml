@@ -1,0 +1,26 @@
+services:
+  slavesim:
+    image: slavesim:latest
+    build:
+      context: .
+    container_name: slavesim
+    restart: unless-stopped
+    ports:
+      - "16000:16000"
+    volumes:
+      # 与下位机容器共享同一份 devpts。
+      # 实测：不挂载时容器里只有 ptmx，挂载后容器内建的 PTY 才会落到宿主机、
+      # 也才能被另一个容器看见并打开。
+      - /dev/pts:/dev/pts
+      # 软链接目录。必须与下位机容器挂载到完全相同的路径，
+      # 因为下位机的 serial.device 指向的就是这个路径。
+      - /home/daniel/serial-sim:/home/daniel/serial-sim
+      - ./config.json:/etc/slavesim/config.json:ro
+      - ./log:/var/log/slavesim
+    command:
+      - -config
+      - /etc/slavesim/config.json
+      - -http
+      - ":16000"
+      - -logfile
+      - /var/log/slavesim/slavesim.log

@@ -1,0 +1,90 @@
+{
+  "buses": [
+    {
+      "name": "RS485-1",
+      "link": "/home/daniel/serial-sim/tty0",
+      "slaves": [
+        {
+          "device_id": 1,
+          "response_delay_ms": 0,
+          "unmapped_policy": "exception",
+          "registers": [
+            {
+              "function": "0x04",
+              "address": 3004,
+              "type": "INT32",
+              "tag": "有功功率",
+              "source": { "kind": "sine", "base": 5000, "amplitude": 2000, "period_ms": 120000 }
+            },
+            {
+              "function": "0x04",
+              "address": 3042,
+              "type": "UINT16",
+              "tag": "电网频率",
+              "source": { "kind": "const", "value": 5000 }
+            },
+            {
+              "function": "0x04",
+              "address": 3043,
+              "type": "UINT16",
+              "tag": "逆变器当前状态",
+              "source": { "kind": "const", "value": 3 }
+            },
+            {
+              "function": "0x03",
+              "address": 3069,
+              "type": "UINT16",
+              "access": "readwrite",
+              "tag": "限功率开关",
+              "source": { "kind": "manual" }
+            },
+            {
+              "function": "0x06",
+              "address": 40120,
+              "type": "UINT16",
+              "access": "readwrite",
+              "tag": "有功功率固定值降额命令",
+              "source": { "kind": "manual" }
+            },
+            {
+              "function": "0x05",
+              "address": 10,
+              "type": "BOOL",
+              "access": "readwrite",
+              "tag": "开关机",
+              "source": { "kind": "manual" }
+            }
+          ]
+        },
+        {
+          "device_id": 2,
+          "unmapped_policy": "exception",
+          "registers": [
+            {
+              "function": "0x04",
+              "address": 3004,
+              "type": "INT32",
+              "tag": "有功功率",
+              "source": { "kind": "sine", "base": 7000, "amplitude": 1500, "period_ms": 90000 }
+            },
+            {
+              "function": "0x04",
+              "address": 3042,
+              "type": "UINT16",
+              "tag": "电网频率",
+              "source": { "kind": "const", "value": 5000 }
+            },
+            {
+              "function": "0x06",
+              "address": 40120,
+              "type": "UINT16",
+              "access": "readwrite",
+              "tag": "有功功率固定值降额命令",
+              "source": { "kind": "manual" }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
