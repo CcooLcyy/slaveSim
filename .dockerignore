@@ -2,4 +2,5 @@
 !go.mod
 !main.go
 !internal
+!cmd
 !config.example.json

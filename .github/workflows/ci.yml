@@ -1,0 +1,94 @@
+name: 持续集成
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # 两个架构各自在**原生** runner 上运行。arm64 使用 GitHub 托管的 arm64
+  # runner，因此走真实 PTY 的集成测试是在 arm64 上真正执行，
+  # 而不是"交叉编译完就不验证"。
+  test:
+    name: ${{ matrix.arch }} 静态检查、测试与产物
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            goarch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            goarch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: 安装 Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          # 项目无第三方依赖，不需要模块缓存。
+          cache: false
+
+      - name: 静态检查
+        run: go vet ./...
+
+      - name: 单元与集成测试
+        # 含 internal/sim/bus_test.go 中走真实 PTY 的用例。
+        run: go test ./...
+
+      - name: 构建 linux 产物
+        env:
+          GOOS: linux
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: '0'
+        run: |
+          mkdir -p dist
+          go build -trimpath -ldflags "-s -w" -o dist/slavesim-linux-${{ matrix.goarch }} .
+          go build -trimpath -ldflags "-s -w" -o dist/probe-linux-${{ matrix.goarch }} ./cmd/probe
+          ls -l dist
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: slavesim-linux-${{ matrix.goarch }}
+          path: dist/
+          if-no-files-found: error
+
+  # 验证镜像的交叉构建路径：在 x64 runner 上直接产出 linux/arm64 镜像。
+  # 因为运行阶段是 scratch 且无 RUN 指令，整个过程不需要 qemu。
+  docker-cross:
+    name: 镜像交叉构建（linux/arm64）
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: 构建 arm64 镜像
+        run: docker build --platform linux/arm64 -t slavesim:arm64 .
+
+      - name: 校验镜像架构与内容
+        run: |
+          arch="$(docker image inspect slavesim:arm64 --format '{{.Architecture}}')"
+          echo "镜像架构: ${arch}"
+          test "${arch}" = "arm64" || { echo "镜像架构不是 arm64"; exit 1; }
+          docker create --name slavesim-check slavesim:arm64
+          docker export slavesim-check | tar -tv | grep -E 'slavesim|/probe'
+          docker rm slavesim-check

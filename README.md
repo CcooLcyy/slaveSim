@@ -39,6 +39,41 @@ cp config.example.json config.json
 docker compose up -d --build
 ```
 
+### 构建 arm64 镜像（部署到设备）
+
+下位机设备是 arm64，通常需要在 x64 机器上交叉构建。因为运行阶段是 `scratch` 且不含
+任何 `RUN` 指令，**整个过程不需要 qemu**，只是让 Go 换一个目标架构编译：
+
+```bash
+docker build --platform linux/arm64 -t slavesim:arm64 .
+docker image inspect slavesim:arm64 --format '{{.Architecture}}'   # 应为 arm64
+
+# 传到设备
+docker save slavesim:arm64 | gzip > slavesim-arm64.tar.gz
+scp slavesim-arm64.tar.gz <设备>:~/
+# 设备上（docker 需要提权时加 sudo）
+gunzip -c slavesim-arm64.tar.gz | sudo docker load
+```
+
+也可以直接用 CI 产出的 arm64 二进制（产物名 `slavesim-linux-arm64`），设备上无需 Docker：
+
+```bash
+./slavesim-linux-arm64 -config config.json -http :16000
+```
+
+### 持续集成
+
+`.github/workflows/ci.yml` 在两个**原生** runner 上跑同一套 `go vet` / `go test` / `go build`：
+
+| Job | Runner | 产出 |
+| --- | --- | --- |
+| `x64` | `ubuntu-latest` | `slavesim-linux-amd64` |
+| `arm64` | `ubuntu-24.04-arm` | `slavesim-linux-arm64` |
+| `docker-cross` | `ubuntu-latest` | 验证 `--platform linux/arm64` 交叉构建镜像 |
+
+arm64 用的是 GitHub 托管的 arm64 runner，所以 `internal/sim/bus_test.go` 里那些
+**走真实 PTY 的集成测试是在 arm64 上真跑**，而不是交叉编译完就不验证。
+
 启动后访问 `http://<主机>:16000` 打开界面。
 
 ### 自带的主站探针
