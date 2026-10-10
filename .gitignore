@@ -10,3 +10,7 @@
 # Go 构建与测试产物
 *.test
 *.out
+dist/
+release/
+__pycache__/
+*.pyc

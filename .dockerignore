@@ -1,6 +1,7 @@
 *
 !go.mod
 !main.go
+!version.go
 !internal
 !cmd
 !config.example.json

@@ -115,6 +115,15 @@ go test ./...
 ./slavesim -config config.example.json -http :16000
 ```
 
+## R2 发布与自动更新
+
+推送 `master` 后，GitHub Actions 自动将双架构二进制包和 Docker 镜像包发布到 R2 的 `slavesim/ci` 通道；正式标签 `vX.Y.Z` 发布到 `slavesim/stable`。首次使用需要配置三个 R2 Actions Secrets。
+
+- [测试通道清单](https://pub-19f3d71852b04011b120b1b814141c12.r2.dev/slavesim/ci/latest.json)
+- [稳定通道清单](https://pub-19f3d71852b04011b120b1b814141c12.r2.dev/slavesim/stable/latest.json)（首次正式发版后可用）
+
+设备使用独立的 Python 更新程序和 systemd 定时器，校验下载包与镜像 ID，保留现场配置与日志，健康检查失败时回退。需要明确执行安装命令才会启用，不会自动部署到现有设备。详见 [R2 发布与自动更新](doc/R2发布与自动更新.md)。
+
 ## 与下位机对接
 
 模拟器启动后会打印并建立软链接，例如：

@@ -51,6 +51,9 @@ jobs:
         # 含 internal/sim/bus_test.go 中走真实 PTY 的用例。
         run: go test ./...
 
+      - name: 发布与自动更新工具测试
+        run: python3 -m unittest discover -s test -p 'test_*.py' -v
+
       - name: 构建 linux 产物
         env:
           GOOS: linux

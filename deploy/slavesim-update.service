@@ -1,0 +1,13 @@
+# 默认示例，install-timer 会按 --deploy-dir 生成实际路径。
+[Unit]
+Description=slaveSim 自动更新
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+ExecStart=/usr/bin/python3 /opt/slavesim/update.py apply --deploy-dir /opt/slavesim
+TimeoutStartSec=600

@@ -1,0 +1,190 @@
+name: R2 发布
+
+on:
+  push:
+    branches: [master]
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: 发布通道
+        required: true
+        type: choice
+        options: [ci, stable]
+        default: ci
+      release_ref:
+        description: 稳定通道必须填写正式标签 vX.Y.Z；测试通道留空
+        required: false
+        type: string
+
+# 同一通道必须串行，避免旧清单晚于新清单上传。
+concurrency:
+  group: r2-${{ inputs.channel || (startsWith(github.ref, 'refs/tags/') && 'stable' || 'ci') }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  R2_BUCKET: ${{ vars.R2_BUCKET || 'mskdsp-update' }}
+  R2_PREFIX: ${{ vars.R2_PREFIX || 'slavesim' }}
+  R2_PUBLIC_BASE_URL: ${{ vars.R2_PUBLIC_BASE_URL || 'https://pub-19f3d71852b04011b120b1b814141c12.r2.dev' }}
+
+jobs:
+  resolve:
+    name: 校验发布目标与工具测试
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      channel: ${{ steps.metadata.outputs.channel }}
+      version: ${{ steps.metadata.outputs.version }}
+      commit: ${{ steps.metadata.outputs.commit }}
+      published_at: ${{ steps.metadata.outputs.published_at }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_ref || github.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: 校验标签、分支与版本
+        id: metadata
+        env:
+          CHANNEL_INPUT: ${{ inputs.channel }}
+          REF_INPUT: ${{ inputs.release_ref }}
+          EVENT_REF: ${{ github.ref }}
+        run: |
+          python3 - <<'PY'
+          import os, re, subprocess
+          channel = os.environ.get('CHANNEL_INPUT') or ('stable' if os.environ['EVENT_REF'].startswith('refs/tags/') else 'ci')
+          ref = os.environ.get('REF_INPUT') or os.environ['EVENT_REF']
+          commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          if channel == 'stable':
+              tag = ref.removeprefix('refs/tags/')
+              if not re.fullmatch(r'v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)', tag):
+                  raise SystemExit('稳定通道必须指定正式版本标签 vX.Y.Z')
+              tagged = subprocess.check_output(['git', 'rev-parse', f'refs/tags/{tag}^{{commit}}'], text=True).strip()
+              if tagged != commit:
+                  raise SystemExit('当前提交与正式版本标签不一致')
+              subprocess.run(['git', 'merge-base', '--is-ancestor', commit, 'origin/master'], check=True)
+              version = tag[1:]
+          else:
+              if ref not in ('master', 'refs/heads/master'):
+                  raise SystemExit('测试通道只能发布 master')
+              version = f"0.0.0-ci.{os.environ['GITHUB_RUN_NUMBER']}.{os.environ['GITHUB_RUN_ATTEMPT']}"
+          published_at = subprocess.check_output(['git', 'show', '-s', '--format=%cI', 'HEAD'], text=True).strip()
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              for key, value in dict(channel=channel, version=version, commit=commit, published_at=published_at).items():
+                  output.write(f'{key}={value}\n')
+          print(f'发布目标：通道={channel} 版本={version} 提交={commit}')
+          PY
+      - name: 发布与自动更新工具测试
+        run: python3 -m unittest discover -s test -p 'test_*.py' -v
+
+  build:
+    name: 构建与测试 ${{ matrix.arch }}
+    needs: resolve
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.x'
+          cache: false
+      - name: Go 静态检查与原生 PTY 测试
+        run: |
+          go vet ./...
+          go test ./...
+      - name: 构建二进制与完整镜像包
+        env:
+          ARCH: ${{ matrix.arch }}
+          VERSION: ${{ needs.resolve.outputs.version }}
+          COMMIT: ${{ needs.resolve.outputs.commit }}
+          BUILD_TIME: ${{ needs.resolve.outputs.published_at }}
+          CGO_ENABLED: '0'
+          GOOS: linux
+          GOARCH: ${{ matrix.arch }}
+        run: |
+          mkdir -p "dist/$ARCH"
+          go build -trimpath -ldflags "-s -w -X main.version=$VERSION -X main.commit=$COMMIT -X main.buildTime=$BUILD_TIME" -o "dist/$ARCH/slavesim" .
+          go build -trimpath -ldflags '-s -w' -o "dist/$ARCH/probe" ./cmd/probe
+          "dist/$ARCH/slavesim" -version
+          source_epoch=$(git show -s --format=%ct HEAD)
+          docker build --provenance=false --platform "linux/$ARCH" --build-arg GO_IMAGE=golang:1.24-alpine --build-arg "SOURCE_DATE_EPOCH=$source_epoch" --build-arg "VERSION=$VERSION" --build-arg "COMMIT=$COMMIT" --build-arg "BUILD_TIME=$BUILD_TIME" -t "slavesim:$VERSION-$ARCH" .
+          docker save "slavesim:$VERSION-$ARCH" | gzip -n > "dist/$ARCH/slavesim-image.tar.gz"
+          python3 scripts/update.py image-id --archive "dist/$ARCH/slavesim-image.tar.gz" --image "slavesim:$VERSION-$ARCH" > "dist/$ARCH/image-id.txt"
+          docker run --rm "slavesim:$VERSION-$ARCH" -version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.arch }}
+          path: dist/${{ matrix.arch }}/
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: 发布双架构资产与更新清单到 R2
+    needs: [resolve, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: amd64
+          path: dist/amd64
+      - uses: actions/download-artifact@v4
+        with:
+          name: arm64
+          path: dist/arm64
+      - name: 生成发布包、校验信息与清单
+        env:
+          VERSION: ${{ needs.resolve.outputs.version }}
+          CHANNEL: ${{ needs.resolve.outputs.channel }}
+          COMMIT: ${{ needs.resolve.outputs.commit }}
+          PUBLISHED_AT: ${{ needs.resolve.outputs.published_at }}
+        run: |
+          python3 scripts/release.py prepare --input-dir dist --output-dir release --version "$VERSION" --channel "$CHANNEL" --commit "$COMMIT" --published-at "$PUBLISHED_AT" --public-base-url "$R2_PUBLIC_BASE_URL" --prefix "$R2_PREFIX"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ needs.resolve.outputs.version }}
+          path: release/
+          if-no-files-found: error
+      - name: 校验 R2 凭据与 AWS CLI
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: |
+          python3 - <<'PY'
+          import os
+          names = ('R2_ACCOUNT_ID', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY')
+          missing = [name for name in names if not os.environ.get(name)]
+          if missing:
+              raise SystemExit('缺少 R2 发布凭据，请配置仓库 Actions Secrets：' + ', '.join(missing))
+          PY
+          aws --version
+      - name: 上传资产并最后更新入口清单
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+        run: |
+          python3 scripts/release.py publish --output-dir release --bucket "$R2_BUCKET" --prefix "$R2_PREFIX" --account-id "$R2_ACCOUNT_ID" --public-base-url "$R2_PUBLIC_BASE_URL"
+          printf 'R2 更新清单：%s/%s/%s/latest.json\n' "$R2_PUBLIC_BASE_URL" "$R2_PREFIX" '${{ needs.resolve.outputs.channel }}' >> "$GITHUB_STEP_SUMMARY"

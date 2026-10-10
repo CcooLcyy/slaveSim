@@ -29,7 +29,12 @@ func main() {
 	configPath := flag.String("config", "/etc/slavesim/config.json", "配置文件路径")
 	httpAddr := flag.String("http", ":16000", "WebUI 监听地址")
 	logFile := flag.String("logfile", "", "报文日志落盘路径，留空表示只输出到标准输出")
+	showVersion := flag.Bool("version", false, "显示版本信息并退出")
 	flag.Parse()
+	if *showVersion {
+		fmt.Printf("slaveSim %s 提交=%s 构建时间=%s\n", version, commit, buildTime)
+		return
+	}
 
 	if err := run(*configPath, *httpAddr, *logFile); err != nil {
 		log.Printf("[slaveSim] 启动失败: %v", err)
@@ -38,6 +43,7 @@ func main() {
 }
 
 func run(configPath, httpAddr, logFile string) error {
+	log.Printf("[slaveSim] 版本=%s 提交=%s 构建时间=%s", version, commit, buildTime)
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		return err

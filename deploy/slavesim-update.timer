@@ -1,0 +1,11 @@
+[Unit]
+Description=定期检查 slaveSim 发布版本
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=5min
+RandomizedDelaySec=30s
+Unit=slavesim-update.service
+
+[Install]
+WantedBy=timers.target

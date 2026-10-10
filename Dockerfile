@@ -11,17 +11,21 @@ ARG GO_IMAGE=docker.m.daocloud.io/library/golang:1.24-alpine
 FROM --platform=$BUILDPLATFORM ${GO_IMAGE} AS builder
 
 ARG TARGETARCH
+ARG VERSION=dev
+ARG COMMIT=unknown
+ARG BUILD_TIME=unknown
 
 WORKDIR /src
 
 # 项目不依赖任何第三方包，因此无需 go mod download，构建过程完全离线。
 COPY go.mod ./
 COPY main.go ./
+COPY version.go ./
 COPY internal ./internal
 COPY cmd ./cmd
 
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} \
-      go build -trimpath -ldflags "-s -w" -o /out/slavesim . \
+      go build -trimpath -ldflags "-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.buildTime=${BUILD_TIME}" -o /out/slavesim . \
  && CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} \
       go build -trimpath -ldflags "-s -w" -o /out/probe ./cmd/probe
 

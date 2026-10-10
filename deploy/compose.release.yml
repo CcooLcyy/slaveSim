@@ -1,0 +1,30 @@
+services:
+  slavesim:
+    image: ${SLAVESIM_IMAGE:?请先执行更新器首次安装}
+    pull_policy: never
+    container_name: slavesim
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-16000}:16000"
+    volumes:
+      - type: bind
+        source: /dev/pts
+        target: /dev/pts
+      # 与现场配置、下位机容器使用相同的绝对路径，不改写配置。
+      - type: bind
+        source: ${SERIAL_SIM_DIR:?请配置串口软链接目录}
+        target: ${SERIAL_SIM_DIR:?请配置串口软链接目录}
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${CONFIG_PATH:?请配置既有配置文件}
+        target: /etc/slavesim/config.json
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${LOG_DIR:?请配置日志目录}
+        target: /var/log/slavesim
+        bind:
+          create_host_path: false
+    command: ["-config", "/etc/slavesim/config.json", "-http", ":16000", "-logfile", "/var/log/slavesim/slavesim.log"]
