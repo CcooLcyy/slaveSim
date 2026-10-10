@@ -346,8 +346,16 @@ def wait_healthy(folder, settings, image_id, runner=run, timeout=45):
     return False
 
 
+def binary_runtime_active(folder, settings):
+    # 新管理进程的已安装状态与宿主 Docker 镜像状态分开保存，防止混用两种更新方式。
+    return ((Path(folder) / "runtime" / "state.json").is_file()
+            or (settings.get("update_mode") == "binary" and (Path(folder) / "state.json").is_file()))
+
+
 def check_update(folder):
     settings = settings_for(folder)
+    if binary_runtime_active(folder, settings):
+        raise UpdateError("当前为单容器程序更新模式，请在网页使用检查更新按钮")
     data = fetch_manifest(settings["manifest_url"])
     validate_manifest(data, settings["manifest_url"], platform_key())
     state = read_json(folder / "state.json") if (folder / "state.json").exists() else None
@@ -362,6 +370,8 @@ def apply_update(folder, allow_initial_install=False, runner=run):
     folder = Path(folder).resolve()
     with file_lock(folder):
         settings = settings_for(folder)
+        if binary_runtime_active(folder, settings):
+            raise UpdateError("当前为单容器程序更新模式，请在网页更新；基础镜像升级须单独维护")
         old_state = read_json(folder / "state.json") if (folder / "state.json").exists() else None
         if not old_state and not allow_initial_install:
             raise UpdateError("首次安装必须显式传入 --allow-initial-install")
@@ -446,6 +456,7 @@ def init_deployment(folder, config, serial_dir, log_dir, http_port, manifest_url
                     log_dir=str(log_dir), http_port=http_port)
     env_content(settings, "slavesim:pending")
     folder.mkdir(parents=True, exist_ok=True)
+    (folder / "runtime").mkdir(exist_ok=True)
     serial_dir.mkdir(parents=True, exist_ok=True)
     log_dir.mkdir(parents=True, exist_ok=True)
     source = Path(__file__).resolve().parents[1] / "deploy/compose.release.yml"
@@ -460,7 +471,9 @@ def init_deployment(folder, config, serial_dir, log_dir, http_port, manifest_url
 def install_timer(folder):
     if platform.system() != "Linux" or os.geteuid() != 0:
         raise UpdateError("安装 systemd 定时器需要在 Linux 上以 root 执行")
-    settings_for(folder)
+    settings = settings_for(folder)
+    if binary_runtime_active(folder, settings):
+        raise UpdateError("单容器程序更新使用网页操作，不允许安装旧的 Docker 镜像更新定时器")
     if not (folder / "state.json").exists():
         raise UpdateError("请先成功完成首次安装，再启用自动更新定时器")
     # 固定 Python 与更新脚本绝对路径；不通过 shell 解释设备参数。

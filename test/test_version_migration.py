@@ -1,5 +1,6 @@
 """验证新版本发布包与实际设备更新器的契约及旧状态迁移。"""
 from pathlib import Path
+import os
 import subprocess
 import sys
 import tarfile
@@ -116,8 +117,10 @@ class DeploymentMigrationTests(unittest.TestCase):
         update.init_deployment(folder, self.config, Path(self.settings["serial_dir"]),
                                Path(self.settings["log_dir"]), 16000, update_tests.BASE)
         self.assertTrue((folder / "versioning.py").is_file())
+        self.assertTrue((folder / "runtime").is_dir())
         result = subprocess.run([sys.executable, str(folder / "update.py"), "--help"],
-                                capture_output=True, text=True, encoding="utf-8")
+                                capture_output=True, text=True, encoding="utf-8",
+                                env=dict(os.environ, PYTHONUTF8="1"))
         self.assertEqual(result.returncode, 0, result.stderr)
 
 

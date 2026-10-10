@@ -6,3 +6,9 @@
 !internal
 !cmd
 !config.example.json
+!scripts
+!scripts/runtime.py
+!scripts/update.py
+!scripts/versioning.py
+!deploy
+!deploy/updater.runtime.example.json

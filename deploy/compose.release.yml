@@ -8,6 +8,17 @@ services:
       - "${HTTP_PORT:-16000}:16000"
     volumes:
       - type: bind
+        source: ./runtime
+        target: /var/lib/slavesim
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./updater.json
+        target: /etc/slavesim/updater.json
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
         source: /dev/pts
         target: /dev/pts
       # 与现场配置、下位机容器使用相同的绝对路径，不改写配置。

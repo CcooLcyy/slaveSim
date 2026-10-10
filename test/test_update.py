@@ -178,6 +178,31 @@ class DeploymentTests(unittest.TestCase):
              mock.patch.object(update, "wait_healthy", **({"side_effect": health} if isinstance(health, list) else {"return_value": health})):
             return update.apply_update(self.folder, runner=self.runner)
 
+    # 网页更新提交状态后，旧镜像命令不能覆盖容器或使用过期宿主状态。
+    def test_binary_runtime_blocks_legacy_check_and_apply_before_network(self):
+        (self.folder / "runtime").mkdir()
+        update.atomic_json(self.folder / "runtime/state.json", {"version": "new"})
+        with mock.patch.object(update, "fetch_manifest") as fetch:
+            with self.assertRaisesRegex(update.UpdateError, "网页"):
+                update.check_update(self.folder)
+            with self.assertRaisesRegex(update.UpdateError, "网页"):
+                self.apply()
+            fetch.assert_not_called()
+        self.assertEqual(self.calls, [])
+        self.assertEqual((self.folder / ".env").read_bytes(), self.old_env)
+
+    # 迁移标记在管理进程首次启动前就阻止旧更新方式。
+    def test_binary_mode_marker_blocks_legacy_timer(self):
+        self.settings["update_mode"] = "binary"
+        update.atomic_json(self.folder / "updater.json", self.settings)
+        with mock.patch.object(update.platform, "system", return_value="Linux"), \
+             mock.patch.object(update.os, "geteuid", return_value=0, create=True), \
+             mock.patch.object(update, "atomic_bytes") as write, mock.patch.object(update, "run") as run:
+            with self.assertRaisesRegex(update.UpdateError, "网页"):
+                update.install_timer(self.folder)
+            write.assert_not_called()
+            run.assert_not_called()
+
     # 健康成功后才推进 state，保留用户配置。
     def test_success_preserves_configuration(self):
         before = self.config.read_bytes()

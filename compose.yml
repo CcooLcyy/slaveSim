@@ -17,6 +17,8 @@ services:
       - /home/daniel/serial-sim:/home/daniel/serial-sim
       - ./config.json:/etc/slavesim/config.json:ro
       - ./log:/var/log/slavesim
+      # 程序版本和回滚文件独立于基础镜像持久保存。
+      - ./runtime:/var/lib/slavesim
     command:
       - -config
       - /etc/slavesim/config.json

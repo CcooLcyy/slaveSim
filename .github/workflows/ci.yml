@@ -72,6 +72,12 @@ jobs:
       - name: 发布与自动更新工具测试
         run: python3 -m unittest discover -s test -p 'test_*.py' -v
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: 网页更新状态与操作测试
+        run: node --test test/web_update_panel.test.mjs
+
       - name: 构建 linux 产物
         env:
           GOOS: linux
@@ -95,7 +101,7 @@ jobs:
           if-no-files-found: error
 
   # 验证镜像的交叉构建路径：在 x64 runner 上直接产出 linux/arm64 镜像。
-  # 因为运行阶段是 scratch 且无 RUN 指令，整个过程不需要 qemu。
+  # 运行阶段采用目标架构的 Python 基础镜像且无 RUN 指令，不需要 qemu。
   docker-cross:
     needs: metadata
     name: 镜像交叉构建（linux/arm64）

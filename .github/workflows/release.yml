@@ -85,6 +85,11 @@ jobs:
           PY
       - name: 发布与自动更新工具测试
         run: python3 -m unittest discover -s test -p 'test_*.py' -v
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: 网页更新状态与操作测试
+        run: node --test test/web_update_panel.test.mjs
 
   build:
     name: 构建与测试 ${{ matrix.arch }}
@@ -132,6 +137,7 @@ jobs:
           docker save "slavesim:$IMAGE_TAG-$ARCH" | gzip -n > "dist/$ARCH/slavesim-image.tar.gz"
           python3 scripts/update.py image-id --archive "dist/$ARCH/slavesim-image.tar.gz" --image "slavesim:$IMAGE_TAG-$ARCH" > "dist/$ARCH/image-id.txt"
           docker run --rm "slavesim:$IMAGE_TAG-$ARCH" -version
+          docker run --rm --entrypoint python3 -v "$PWD/scripts/smoke_runtime.py:/smoke_runtime.py:ro" "slavesim:$IMAGE_TAG-$ARCH" -B /smoke_runtime.py
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.arch }}

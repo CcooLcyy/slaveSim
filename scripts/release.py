@@ -23,7 +23,9 @@ from versioning import artifact_version, image_name, validate_commit, version_or
 
 ARCHES = ("amd64", "arm64")
 SOURCE_DIR = Path(__file__).resolve().parents[1]
-PACKAGE_FILES = ("config.example.json", "README.md", "VERSION", "scripts/update.py", "scripts/versioning.py",
+PACKAGE_FILES = ("config.example.json", "README.md", "VERSION", "scripts/update.py", "scripts/versioning.py", "scripts/runtime.py",
+                 "deploy/updater.runtime.example.json",
+                 "doc/单容器网页更新.md",
                  "deploy/compose.release.yml", "deploy/slavesim-update.service",
                  "deploy/slavesim-update.timer")
 HEX64 = re.compile(r"^[0-9a-f]{64}$")

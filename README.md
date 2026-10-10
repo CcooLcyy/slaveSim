@@ -28,6 +28,7 @@ docker run -d --name slavesim \
   -v /dev/pts:/dev/pts \
   -v /home/daniel/serial-sim:/home/daniel/serial-sim \
   -v "$PWD/config.json:/etc/slavesim/config.json:ro" \
+  -v "$PWD/runtime:/var/lib/slavesim" \
   --restart unless-stopped \
   slavesim:latest
 ```
@@ -41,7 +42,7 @@ docker compose up -d --build
 
 ### 构建 arm64 镜像（部署到设备）
 
-下位机设备是 arm64，通常需要在 x64 机器上交叉构建。因为运行阶段是 `scratch` 且不含
+下位机设备是 arm64，通常需要在 x64 机器上交叉构建。运行阶段使用目标架构的 Python 镜像且不含
 任何 `RUN` 指令，**整个过程不需要 qemu**，只是让 Go 换一个目标架构编译：
 
 ```bash
@@ -126,7 +127,9 @@ go test ./...
 - [测试通道清单](https://pub-19f3d71852b04011b120b1b814141c12.r2.dev/slavesim/ci/latest.json)
 - [稳定通道清单](https://pub-19f3d71852b04011b120b1b814141c12.r2.dev/slavesim/stable/latest.json)（首次正式发版后可用）
 
-设备使用独立的 Python 更新程序和 systemd 定时器，校验下载包与镜像 ID，保留现场配置与日志，健康检查失败时回退。需要明确执行安装命令才会启用，不会自动部署到现有设备。详见 [R2 发布与自动更新](doc/R2发布与自动更新.md)。
+容器内的常驻管理进程提供“检查更新”和“更新到最新版”按钮。默认更新源为上述测试通道，可通过挂载 `updater.json` 的 `manifest_url` 配置。检查与安装均由用户手动触发；下载并校验二进制包后，仅重启模拟器子进程，容器和镜像保持不变。配置、日志与 `runtime/` 中的已安装版本持久保存，健康检查失败会回滚。容器重启后仍使用已安装版本。
+
+首次部署由 `scripts/update.py init` 和 `apply --allow-initial-install` 安装基础镜像；进入网页更新模式后，旧的 Docker 镜像更新命令和定时器会拒绝运行。管理进程或基础镜像升级仍需单独维护。已有部署迁移需备份并重建一次容器，详见 [单容器网页更新](doc/单容器网页更新.md) 与 [R2 发布与自动更新](doc/R2发布与自动更新.md)。
 
 ## 与下位机对接
 
