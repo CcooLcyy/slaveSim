@@ -28,9 +28,9 @@ services:
         bind:
           create_host_path: false
       - type: bind
-        source: ${CONFIG_PATH:?请配置既有配置文件}
-        target: /etc/slavesim/config.json
-        read_only: true
+        # 配置父目录可写挂载，支持同目录临时文件与原子替换。
+        source: ${CONFIG_DIR:?请先迁移配置目录环境}
+        target: /etc/slavesim
         bind:
           create_host_path: false
       - type: bind
@@ -38,4 +38,4 @@ services:
         target: /var/log/slavesim
         bind:
           create_host_path: false
-    command: ["-config", "/etc/slavesim/config.json", "-http", ":16000", "-logfile", "/var/log/slavesim/slavesim.log"]
+    command: ["-config", "/etc/slavesim/${CONFIG_FILENAME:?请配置既有配置文件名}", "-http", ":16000", "-logfile", "/var/log/slavesim/slavesim.log"]

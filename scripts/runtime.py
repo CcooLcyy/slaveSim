@@ -25,6 +25,7 @@ from versioning import artifact_version, validate_commit
 
 MAX_EXPANDED = 64 * 1024 * 1024
 MAX_REQUEST = 1024 * 1024
+MAX_CONFIG_REQUEST = 4 * 1024 * 1024
 MAX_UPDATE_REQUEST = 4096
 HOP_HEADERS = {"connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
                "te", "trailer", "transfer-encoding", "upgrade"}
@@ -543,7 +544,9 @@ class RuntimeHandler(BaseHTTPRequestHandler):
         connection = http.client.HTTPConnection("127.0.0.1", self.server.manager.child_port, timeout=3)
         headers_sent = False
         try:
-            raw = self.body(MAX_REQUEST)
+            # 配置保存上限与 Go 接口一致，其他代理请求沿用原有大小限制。
+            limit = MAX_CONFIG_REQUEST if self.command == "PUT" and urlsplit(self.path).path == "/api/config" else MAX_REQUEST
+            raw = self.body(limit)
             blocked = HOP_HEADERS | {part.strip().lower() for part in self.headers.get("Connection", "").split(",")}
             headers = {name: value for name, value in self.headers.items() if name.lower() not in blocked}
             headers["Host"] = "127.0.0.1:" + str(self.server.manager.child_port)

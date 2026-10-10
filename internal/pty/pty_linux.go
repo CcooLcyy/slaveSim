@@ -6,6 +6,7 @@
 package pty
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"syscall"
@@ -32,7 +33,8 @@ type Master struct {
 // raw 模式是必须的：否则 tty 行规程会回显输入、转换 CR/LF，并把
 // 0x03/0x11/0x13/0x1A 等字节当作控制字符处理，直接破坏二进制 Modbus 帧。
 func Open(linkPath string) (*Master, error) {
-	fd, err := syscall.Open("/dev/ptmx", syscall.O_RDWR|syscall.O_NOCTTY, 0)
+	// 非阻塞描述符让 os.File 使用 Go 的 poller，Close 可唤醒空闲 Read/Write。
+	fd, err := syscall.Open("/dev/ptmx", syscall.O_RDWR|syscall.O_NOCTTY|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return nil, fmt.Errorf("打开 /dev/ptmx 失败: %w", err)
 	}
@@ -81,13 +83,22 @@ func (m *Master) File() *os.File {
 
 // Close 关闭主端并清理软链接。
 func (m *Master) Close() error {
+	var cleanupErr error
 	if m.LinkPath != "" {
-		_ = os.Remove(m.LinkPath)
+		target, err := os.Readlink(m.LinkPath)
+		if err != nil && !os.IsNotExist(err) {
+			cleanupErr = fmt.Errorf("检查串口软链接 %s 失败: %w", m.LinkPath, err)
+		}
+		if err == nil && target == m.SlavePath {
+			if err := os.Remove(m.LinkPath); err != nil && !os.IsNotExist(err) {
+				cleanupErr = fmt.Errorf("删除串口软链接 %s 失败: %w", m.LinkPath, err)
+			}
+		}
 	}
 	if m.file != nil {
-		return m.file.Close()
+		return errors.Join(cleanupErr, m.file.Close())
 	}
-	return nil
+	return cleanupErr
 }
 
 // setRaw 把终端设置为 raw 模式。
@@ -114,11 +125,8 @@ func setRaw(fd int) error {
 	return nil
 }
 
-// symlink 建立指向 PTY 从端的稳定软链接，已存在则覆盖。
+// symlink 只创建新链接，避免覆盖不属于本进程的文件或其他串口。
 func symlink(slavePath, linkPath string) error {
-	if err := os.Remove(linkPath); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("移除旧的软链接 %s 失败: %w", linkPath, err)
-	}
 	if err := os.Symlink(slavePath, linkPath); err != nil {
 		return fmt.Errorf("创建软链接 %s -> %s 失败: %w", linkPath, slavePath, err)
 	}

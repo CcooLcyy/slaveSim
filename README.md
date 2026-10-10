@@ -22,12 +22,15 @@ Modbus RTU 从站模拟器。通过 PTY 创建虚拟串口设备，让下位机 
 ### 用 Docker（推荐，目标机上不需要 Go 工具链）
 
 ```bash
+mkdir -p conf
+cp config.example.json conf/config.json  # 仅首次初始化，已有配置不要覆盖
+cp deploy/updater.runtime.example.json conf/updater.json  # 仅首次初始化，可修改更新源
 docker build -t slavesim:latest .
 docker run -d --name slavesim \
   -p 16000:16000 \
   -v /dev/pts:/dev/pts \
   -v /home/daniel/serial-sim:/home/daniel/serial-sim \
-  -v "$PWD/config.json:/etc/slavesim/config.json:ro" \
+  -v "$PWD/conf:/etc/slavesim" \
   -v "$PWD/runtime:/var/lib/slavesim" \
   --restart unless-stopped \
   slavesim:latest
@@ -36,9 +39,13 @@ docker run -d --name slavesim \
 或用 compose：
 
 ```bash
-cp config.example.json config.json
+mkdir -p conf
+cp config.example.json conf/config.json  # 仅首次初始化，已有配置不要覆盖
+cp deploy/updater.runtime.example.json conf/updater.json  # 仅首次初始化，可修改更新源
 docker compose up -d --build
 ```
+
+配置目录需要对容器进程可写。Web 保存使用同目录临时文件和原子替换，单文件挂载即使改成可写也无法完成替换。挂载 `conf` 会遮蔽镜像中的默认更新源，需保留 `conf/updater.json` 才能启用网页更新。旧版本地 Compose 部署需把既有 `config.json` 复制到 `conf/config.json`，保留既有更新源与 `runtime/`，更新 Compose 后执行 `docker compose up -d --build --force-recreate` 重建模拟器容器。配置目录建议专用，挂载后其中的文件都会进入容器；由发布更新器管理的部署按 [R2 发布与自动更新](doc/R2发布与自动更新.md) 中的旧部署迁移步骤处理。
 
 ### 构建 arm64 镜像（部署到设备）
 
@@ -167,6 +174,8 @@ docker run ... -v /dev/pts:/dev/pts -v /home/daniel/serial-sim:/home/daniel/seri
 
 配置为三层结构：**总线（一条虚拟串口）→ 从站（站号）→ 寄存器**。
 
+Web 页面可新增、编辑和删除多路 RS485 总线、从站及寄存器，支持固定、手动、正弦、斜坡和随机来源。点击“保存并应用”会校验完整配置、写入配置文件并更新正在运行的总线，重启后保留；单独在运行状态中手动设值是临时覆盖。每路总线的软链接应位于与下位机共享的串口目录内。接口及验收规则见 [Web 多路 RS485 配置](doc/Web多路485配置.md)。
+
 > **重要：`source.value` 是寄存器里的原始值，不是工程量。**
 > 工程量由下位机用它自己的点表 `scale/offset` 换算（`value = raw * scale + offset`）。
 > 例如下位机点表里 `scale = 1e-06`、希望看到 80kW，那么这里应当配 `80000000`。
@@ -204,7 +213,7 @@ docker run ... -v /dev/pts:/dev/pts -v /home/daniel/serial-sim:/home/daniel/seri
 slaveSim/
 ├── main.go                     程序入口、日志输出、优雅退出
 ├── config.example.json         配置示例
-├── Dockerfile                  多阶段构建，运行阶段为 scratch
+├── Dockerfile                  多阶段构建，Python 管理进程与 Go 模拟器运行镜像
 ├── compose.yml                 部署编排（含必需的 -v /dev/pts）
 ├── doc/设计方案.md             设计与验收标准
 └── internal/
@@ -225,4 +234,4 @@ slaveSim/
 3. `follow` 取值（写点跟踪 + 一阶惯性），用于 AGC 闭环联调
 4. 帧间隔违规告警（锦浪协议要求查询 `>300ms`、控制 `>700ms`）
 5. DLT645PCD 从站
-6. 多总线、真实串口通道、MQTT 通道
+6. 真实串口通道、MQTT 通道

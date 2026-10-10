@@ -65,9 +65,17 @@ jobs:
       - name: 静态检查
         run: go vet ./...
 
+      - name: 安装前端测试运行时
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Web 配置草稿测试
+        run: node --test test/*.test.mjs
+
       - name: 单元与集成测试
         # 含 internal/sim/bus_test.go 中走真实 PTY 的用例。
-        run: go test ./...
+        run: go test -race ./...
 
       - name: 发布与自动更新工具测试
         run: python3 -m unittest discover -s test -p 'test_*.py' -v

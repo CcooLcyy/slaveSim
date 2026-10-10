@@ -31,10 +31,12 @@ type Bus struct {
 	framer   modbus.Framer
 	lastByte time.Time
 
-	dataCh chan []byte
-	stopCh chan struct{}
-	wg     sync.WaitGroup
-	once   sync.Once
+	dataCh   chan []byte
+	stopCh   chan struct{}
+	wg       sync.WaitGroup
+	once     sync.Once
+	mu       sync.RWMutex
+	closeErr error
 }
 
 // NewBus 构造一条总线；此时尚未创建 PTY，需要再调用 Open。
@@ -74,8 +76,31 @@ func (b *Bus) SlavePath() string {
 
 // Slaves 返回该总线上的从站列表。
 func (b *Bus) Slaves() []*Slave {
-	return b.order
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return append([]*Slave(nil), b.order...)
 }
+
+// Info 返回一致的总线名称与从站列表。
+func (b *Bus) Info() (string, []*Slave) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.Name, append([]*Slave(nil), b.order...)
+}
+
+// Replace 更新从站对象并清除旧对象上的手动覆盖，保留原来的 PTY。
+func (b *Bus) Replace(name string, slaves []*Slave) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.Name = name
+	b.order = append([]*Slave(nil), slaves...)
+	b.slaves = make(map[byte]*Slave, len(slaves))
+	for _, sl := range slaves {
+		b.slaves[sl.DeviceID] = sl
+	}
+}
+
+func (b *Bus) name() string { b.mu.RLock(); defer b.mu.RUnlock(); return b.Name }
 
 // Start 启动读写循环。
 func (b *Bus) Start() {
@@ -86,15 +111,14 @@ func (b *Bus) Start() {
 
 // Close 停止读写循环并释放 PTY 与软链接。
 func (b *Bus) Close() error {
-	b.once.Do(func() { close(b.stopCh) })
-
-	var err error
-	if b.master != nil {
-		// 先关闭主端，让阻塞中的 Read 返回，再等待协程退出。
-		err = b.master.Close()
-	}
-	b.wg.Wait()
-	return err
+	b.once.Do(func() {
+		close(b.stopCh)
+		if b.master != nil {
+			b.closeErr = b.master.Close()
+		}
+		b.wg.Wait()
+	})
+	return b.closeErr
 }
 
 func (b *Bus) readLoop() {
@@ -129,11 +153,15 @@ func (b *Bus) readLoop() {
 				idle = true
 				b.log.Publish(eventbus.Event{
 					Level:   eventbus.LevelWarn,
-					Bus:     b.Name,
+					Bus:     b.name(),
 					Summary: fmt.Sprintf("串口读取中断（通常是暂时没有程序打开从端设备）: %v", err),
 				})
 			}
-			time.Sleep(200 * time.Millisecond)
+			select {
+			case <-b.stopCh:
+				return
+			case <-time.After(200 * time.Millisecond):
+			}
 			continue
 		}
 	}
@@ -158,7 +186,7 @@ func (b *Bus) runLoop() {
 				residual := b.framer.Take()
 				b.log.Publish(eventbus.Event{
 					Level:   eventbus.LevelWarn,
-					Bus:     b.Name,
+					Bus:     b.name(),
 					Frame:   modbus.Hex(residual),
 					Summary: fmt.Sprintf("残帧超时（%d 字节）已丢弃", len(residual)),
 				})
@@ -179,15 +207,18 @@ func (b *Bus) drain() {
 
 func (b *Bus) handleFrame(frame []byte) {
 	id := frame[0]
+	b.mu.RLock()
+	name, order, slaves := b.Name, b.order, b.slaves
+	b.mu.RUnlock()
 
 	// 广播：对全部从站执行写操作，但按规范不产生任何响应。
 	if modbus.IsBroadcast(id) {
-		for _, sl := range b.order {
+		for _, sl := range order {
 			_ = sl.Handle(frame)
 		}
 		b.log.Publish(eventbus.Event{
 			Level:     eventbus.LevelInfo,
-			Bus:       b.Name,
+			Bus:       name,
 			DeviceID:  int(id),
 			Direction: eventbus.DirectionRx,
 			Frame:     modbus.Hex(frame),
@@ -196,12 +227,12 @@ func (b *Bus) handleFrame(frame []byte) {
 		return
 	}
 
-	sl, ok := b.slaves[id]
+	sl, ok := slaves[id]
 	if !ok {
 		// 站号不属于本站时，真机行为是静默不响应。
 		b.log.Publish(eventbus.Event{
 			Level:     eventbus.LevelWarn,
-			Bus:       b.Name,
+			Bus:       name,
 			DeviceID:  int(id),
 			Direction: eventbus.DirectionRx,
 			Frame:     modbus.Hex(frame),
@@ -222,7 +253,7 @@ func (b *Bus) handleFrame(frame []byte) {
 	}
 	b.log.Publish(eventbus.Event{
 		Level:     level,
-		Bus:       b.Name,
+		Bus:       name,
 		DeviceID:  int(id),
 		Direction: eventbus.DirectionRx,
 		Frame:     modbus.Hex(frame),
@@ -234,13 +265,19 @@ func (b *Bus) handleFrame(frame []byte) {
 	}
 
 	if sl.ResponseDelay > 0 {
-		time.Sleep(sl.ResponseDelay)
+		timer := time.NewTimer(sl.ResponseDelay)
+		select {
+		case <-timer.C:
+		case <-b.stopCh:
+			timer.Stop()
+			return
+		}
 	}
 
 	if _, err := b.master.File().Write(res.Response); err != nil {
 		b.log.Publish(eventbus.Event{
 			Level:   eventbus.LevelError,
-			Bus:     b.Name,
+			Bus:     name,
 			Summary: fmt.Sprintf("发送响应失败: %v", err),
 		})
 		return
@@ -248,7 +285,7 @@ func (b *Bus) handleFrame(frame []byte) {
 
 	b.log.Publish(eventbus.Event{
 		Level:     eventbus.LevelInfo,
-		Bus:       b.Name,
+		Bus:       name,
 		DeviceID:  int(id),
 		Direction: eventbus.DirectionTx,
 		Frame:     modbus.Hex(res.Response),

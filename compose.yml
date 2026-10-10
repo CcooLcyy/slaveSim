@@ -15,7 +15,8 @@ services:
       # 软链接目录。必须与下位机容器挂载到完全相同的路径，
       # 因为下位机的 serial.device 指向的就是这个路径。
       - /home/daniel/serial-sim:/home/daniel/serial-sim
-      - ./config.json:/etc/slavesim/config.json:ro
+      # 配置目录必须可写，Web 保存会在同目录创建临时文件并原子替换。
+      - ./conf:/etc/slavesim
       - ./log:/var/log/slavesim
       # 程序版本和回滚文件独立于基础镜像持久保存。
       - ./runtime:/var/lib/slavesim

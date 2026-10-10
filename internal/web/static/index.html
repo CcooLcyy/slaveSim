@@ -119,6 +119,32 @@
     header { flex-wrap: wrap; gap: 6px; }
     main { padding: 12px; }
   }
+  [hidden] { display: none !important; }
+  nav { display: flex; gap: 8px; }
+  nav button { padding: 8px 16px; }
+  nav button[aria-pressed=true] { background: var(--accent); color: white; border-color: var(--accent); }
+  #runtime-panel { display: grid; gap: 16px; }
+  #config-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
+  .config-toolbar { flex-wrap: wrap; position: sticky; top: 0; background: white; z-index: 1; border-bottom: 1px solid var(--border); }
+  .config-status { padding: 10px 14px; color: var(--muted); margin: 0; }
+  .config-status.error { color: #b42318; background: #fff1f0; }
+  .config-hint { margin: 0; padding: 0 14px 12px; color: var(--muted); line-height: 1.6; }
+  #config-buses { padding: 0 14px 14px; display: grid; gap: 16px; }
+  .bus-editor { border: 1px solid var(--border); border-radius: 6px; padding: 14px; background: #fbfcfd; }
+  .editor-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+  .editor-heading h3, .editor-heading h4 { margin: 0; }
+  .config-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); gap: 12px; margin: 12px 0; }
+  .bus-fields { grid-template-columns: minmax(175px, 1fr) minmax(260px, 2fr); }
+  .config-field { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: #444d56; }
+  .config-field input, .config-field select { width: 100%; min-width: 0; padding: 7px 9px; border: 1px solid var(--border); border-radius: 4px; background: white; font: inherit; font-size: 14px; color: #1f2328; }
+  input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .slave-editor { background: white; border: 1px solid var(--border); border-radius: 4px; padding: 12px; margin: 14px 0; }
+  .register-editor { border-top: 1px solid #e8ecf0; padding: 12px 0; }
+  .register-editor summary { cursor: pointer; font-weight: 600; }
+  button.danger { color: #b42318; }
+  button:disabled { opacity: .55; cursor: wait; }
+  .config-empty { color: var(--muted); padding: 20px; text-align: center; }
+  @media (max-width: 650px) { main { padding: 12px; } .bus-fields { grid-template-columns: 1fr; } header { flex-wrap: wrap; } }
 </style>
 </head>
 <body>
@@ -150,6 +176,27 @@
       </div>
     </div>
   </section>
+  <nav aria-label="页面切换">
+    <button id="show-runtime" type="button" aria-pressed="true">运行状态与日志</button>
+    <button id="show-config" type="button" aria-pressed="false">RS485 配置</button>
+  </nav>
+  <section id="config-panel" class="card" hidden>
+    <h2>多路 RS485 配置</h2>
+    <form id="config-form" novalidate>
+      <fieldset id="config-fields">
+        <div class="toolbar config-toolbar">
+          <button id="add-bus" type="button">新增 RS485 总线</button>
+          <button id="reload-config" type="button">重新读取</button>
+          <button id="save-config" class="primary" type="submit">保存并应用</button>
+          <span class="tag" id="config-count"></span>
+        </div>
+        <p id="config-status" class="config-status" role="status" aria-live="polite">点击配置页后读取当前配置</p>
+        <p class="config-hint">每路总线对应一个独立虚拟串口，可挂多个从站；串口路径须位于已共享的串口目录。数值来源填写寄存器原始值，倍率与偏移由下位机点表换算。保存后立即应用，更新总线的临时手动值会重置。</p>
+        <div id="config-buses"></div>
+      </fieldset>
+    </form>
+  </section>
+  <section id="runtime-panel" aria-label="运行状态与报文日志">
   <div id="buses"></div>
 
   <div class="card">
@@ -161,6 +208,7 @@
     </div>
     <div class="logs" id="logs"></div>
   </div>
+  </section>
 </main>
 
 <script>
@@ -177,7 +225,7 @@ function fmtTime(iso) {
 function render(state) {
   const root = document.getElementById('buses');
   root.innerHTML = '';
-  for (const bus of state.buses) {
+  for (const bus of state.buses || []) {
     const card = document.createElement('div');
     card.className = 'card';
     const h = document.createElement('h2');
@@ -189,14 +237,14 @@ function render(state) {
     meta.textContent = `下位机 serial.device = ${bus.link_path}   →   实际设备 ${bus.slave_path}`;
     card.appendChild(meta);
 
-    for (const slave of bus.slaves) {
+    for (const slave of bus.slaves || []) {
       const t = document.createElement('table');
       t.innerHTML = `<thead><tr>
         <th>站号</th><th>功能码</th><th>地址</th><th>类型</th><th>点名</th>
         <th>当前值</th><th>原始字节</th><th>手动设置</th>
       </tr></thead>`;
       const tb = document.createElement('tbody');
-      slave.registers.forEach((reg, i) => {
+      (slave.registers || []).forEach((reg, i) => {
         const tr = document.createElement('tr');
 
         const tdId = document.createElement('td');
@@ -255,7 +303,8 @@ async function refresh() {
   try {
     const r = await fetch('/api/state');
     state = await r.json();
-    render(state);
+    // 输入手动值期间保留输入框，避免轮询覆盖正在编辑的数值。
+    if (!document.getElementById('buses').contains(document.activeElement)) render(state);
   } catch (e) {
     console.error('获取状态失败', e);
   }
@@ -263,7 +312,7 @@ async function refresh() {
 
 async function setManual(bus, deviceId, reg, raw) {
   const value = Number(raw);
-  if (Number.isNaN(value)) {
+  if (!raw.trim() || !Number.isFinite(value)) {
     alert('请输入数字');
     return;
   }
@@ -294,10 +343,14 @@ function appendLog(e) {
   const dir = e.direction ? e.direction : '';
   const device = e.device_id ? `站号=${e.device_id} ` : '';
 
-  div.innerHTML =
-    `<span class="t">${fmtTime(e.time)}</span> ` +
-    `<span class="${cls}">[${dir || e.level}]</span> ` +
-    `${device}${e.frame ? e.frame + ' ' : ''}<span class="t">${e.summary || ''}</span>`;
+  // 总线名称可由配置输入，日志内容以文本展示，避免解释为 HTML。
+  const timestamp = document.createElement('span');
+  timestamp.className = 't'; timestamp.textContent = fmtTime(e.time);
+  const direction = document.createElement('span');
+  direction.className = cls; direction.textContent = `[${dir || e.level}]`;
+  const summary = document.createElement('span');
+  summary.className = 't'; summary.textContent = e.summary || '';
+  div.append(timestamp, ' ', direction, ` ${e.bus ? `总线=${e.bus} ` : ''}${device}${e.frame ? e.frame + ' ' : ''}`, summary);
 
   const atBottom = logsEl.scrollTop + logsEl.clientHeight >= logsEl.scrollHeight - 30;
   logsEl.appendChild(div);
@@ -323,7 +376,9 @@ document.getElementById('clear').onclick = () => { logsEl.innerHTML = ''; };
 refresh();
 setInterval(refresh, 2000);
 connectEvents();
+window.addEventListener('config-applied', refresh);
 </script>
 <script type="module" src="/update-panel.mjs"></script>
+<script type="module" src="/config-editor.mjs"></script>
 </body>
 </html>

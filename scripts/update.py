@@ -29,7 +29,7 @@ DEFAULT_MANIFEST = "https://pub-19f3d71852b04011b120b1b814141c12.r2.dev/slavesim
 NETWORK_TIMEOUT = 30
 MAX_MANIFEST = 1024 * 1024
 MAX_ARCHIVE = 2 * 1024 * 1024 * 1024
-ENV_KEYS = ("SLAVESIM_IMAGE", "CONFIG_PATH", "SERIAL_SIM_DIR", "LOG_DIR", "HTTP_PORT")
+ENV_KEYS = ("SLAVESIM_IMAGE", "CONFIG_PATH", "CONFIG_DIR", "CONFIG_FILENAME", "SERIAL_SIM_DIR", "LOG_DIR", "HTTP_PORT")
 
 
 class UpdateError(RuntimeError):
@@ -315,7 +315,10 @@ def settings_for(folder):
 
 
 def env_content(settings, image):
-    values = (image, settings["config_path"], settings["serial_dir"], settings["log_dir"], str(settings["http_port"]))
+    config = Path(settings["config_path"])
+    # 保留既有配置的绝对路径和文件名，父目录挂载允许 Web 在同目录原子替换文件。
+    values = (image, settings["config_path"], str(config.parent), config.name,
+              settings["serial_dir"], settings["log_dir"], str(settings["http_port"]))
     # Compose 单引号值避免路径中的空格、# 和 $ 被当作语法或变量替换。
     if any("'" in value or "\n" in value or "\r" in value for value in values):
         raise UpdateError("部署环境值不能包含单引号或换行")
@@ -385,7 +388,13 @@ def apply_update(folder, allow_initial_install=False, runner=run):
             old_runtime_id = old_state.get("runtime_image_id", old_state.get("image_id"))
             if previous and previous.get("Image") != old_runtime_id:
                 raise UpdateError("运行中的镜像与安装状态不一致，拒绝自动更新")
-            if (folder / ".env").read_bytes() != env_content(settings, old_state["image"]):
+            current_env = (folder / ".env").read_bytes()
+            expected_env = env_content(settings, old_state["image"])
+            if current_env != expected_env:
+                legacy_env = b"".join(line for line in expected_env.splitlines(keepends=True)
+                                      if not line.startswith((b"CONFIG_DIR=", b"CONFIG_FILENAME=")))
+                if current_env == legacy_env:
+                    raise UpdateError("旧版部署需要先执行配置目录迁移：更新 Compose、重新生成 .env 并重建容器；详见 R2 发布与自动更新文档")
                 raise UpdateError("部署环境文件与安装状态不一致，请先人工核对")
             old_image = json.loads(runner(["docker", "image", "inspect", old_state["image"]]))[0]
             if old_image.get("Id") != old_runtime_id:

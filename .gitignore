@@ -5,6 +5,7 @@
 
 # 运行时配置与日志（config.json 由 config.example.json 复制而来，含现场路径）
 /config.json
+/conf/
 /log/
 /runtime/
 

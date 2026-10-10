@@ -280,6 +280,16 @@ class DeploymentTests(unittest.TestCase):
             self.apply()
         self.assertFalse(any(call[:2] == ["docker", "load"] for call in self.calls))
 
+    # 旧版单文件挂载环境不能直接用于新版目录挂载，应给出可操作的迁移提示。
+    def test_legacy_environment_requires_explicit_migration(self):
+        legacy = b"".join(line for line in self.old_env.splitlines(keepends=True)
+                          if not line.startswith((b"CONFIG_DIR=", b"CONFIG_FILENAME=")))
+        (self.folder / ".env").write_bytes(legacy)
+        with self.assertRaisesRegex(update.UpdateError, "配置目录迁移"):
+            self.apply()
+        self.assertFalse(any(call[:2] == ["docker", "load"] for call in self.calls))
+        self.assertEqual((self.folder / ".env").read_bytes(), legacy)
+
     # 相同版本必须保持镜像身份，不能只比较来源提交。
     def test_same_version_different_image_is_rejected(self):
         self.old.update(version="0.0.0-ci.12.1", commit="a" * 40)
@@ -300,6 +310,41 @@ class DeploymentTests(unittest.TestCase):
         serial.mkdir()
         (serial / "tty0").symlink_to("/dev/pts/99999")
         self.assertEqual(update.settings_for(self.folder)["serial_dir"], str(serial))
+
+
+class ConfigurationMountTests(unittest.TestCase):
+    # 配置目录从既有文件路径派生，保留自定义文件名与特殊字符，不改写现场配置。
+    def test_environment_preserves_configuration_path_and_filename(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            folder = Path(temporary) / "现场 $config #1"
+            config = folder / "自定义 $485 #配置.json"
+            settings = {"config_path": str(config), "serial_dir": str(Path(temporary) / "serial"),
+                        "log_dir": str(Path(temporary) / "log"), "http_port": 16000}
+            content = update.env_content(settings, "slavesim:test").decode("utf-8")
+            self.assertIn("CONFIG_PATH='" + str(config) + "'\n", content)
+            self.assertIn("CONFIG_DIR='" + str(folder) + "'\n", content)
+            self.assertIn("CONFIG_FILENAME='" + config.name + "'\n", content)
+
+    # 发布模板挂载可写父目录，并让进程加载原文件名，原子替换不再碰挂载点。
+    def test_release_template_mounts_configuration_directory(self):
+        content = (ROOT / "deploy/compose.release.yml").read_text(encoding="utf-8")
+        self.assertIn("source: ${CONFIG_DIR:", content)
+        self.assertIn("target: /etc/slavesim\n", content)
+        self.assertIn("/etc/slavesim/${CONFIG_FILENAME:", content)
+        mounts = content.split("      - type: bind\n")
+        configuration = [mount for mount in mounts if "source: ${CONFIG_DIR:" in mount]
+        self.assertEqual(len(configuration), 1)
+        self.assertNotIn("read_only: true", configuration[0])
+        self.assertNotIn("source: ${CONFIG_PATH:", content)
+
+    # 管理进程的更新源配置保持独立只读挂载，不随 Web 现场配置变为可写。
+    def test_release_template_keeps_updater_configuration_read_only(self):
+        content = (ROOT / "deploy/compose.release.yml").read_text(encoding="utf-8")
+        mounts = content.split("      - type: bind\n")
+        updater = [mount for mount in mounts if "source: ./updater.json\n" in mount]
+        self.assertEqual(len(updater), 1)
+        self.assertIn("target: /etc/slavesim/updater.json\n", updater[0])
+        self.assertIn("read_only: true", updater[0])
 
 
 class HealthTests(unittest.TestCase):

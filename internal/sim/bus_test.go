@@ -149,3 +149,23 @@ func TestBusWriteThenReadBackOverPTY(t *testing.T) {
 		t.Fatalf("写入后读回的值错误: 得到 %s，期望 %s", modbus.Hex(readResp), modbus.Hex(want))
 	}
 }
+
+func TestBusCloseWithIdleConnectedClient(t *testing.T) {
+	bus := newPTYBus(t)
+	f, err := os.OpenFile(bus.SlavePath(), os.O_RDWR, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	time.Sleep(50 * time.Millisecond)
+	done := make(chan error, 1)
+	go func() { done <- bus.Close() }()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("客户端空闲时关闭总线阻塞")
+	}
+}

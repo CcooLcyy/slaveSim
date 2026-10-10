@@ -359,6 +359,64 @@ class HTTPTests(ManagerFixture):
         with mock.patch.object(self.manager, "begin", side_effect=runtime.BusyError("已有任务")):
             self.assertEqual(self.request("/api/update/apply", "POST", b"{}", action)[0], 409)
 
+    # 配置读取与保存支持超过 1 MiB、最多 4 MiB；其他请求仍保持原限制。
+    def test_proxy_configuration_body_limit(self):
+        received = []
+        initial = json.dumps({"note": "x" * (1024 * 1024)}).encode()
+
+        class Backend(BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(initial)))
+                self.end_headers()
+                self.wfile.write(initial)
+
+            def do_PUT(self):
+                raw = self.rfile.read(int(self.headers["Content-Length"]))
+                received.append((self.path, raw))
+                self.send_response(200)
+                self.send_header("Content-Length", "2")
+                self.end_headers()
+                self.wfile.write(b"{}")
+
+            def log_message(self, *args):
+                pass
+
+        backend = ThreadingHTTPServer(("127.0.0.1", 0), Backend)
+        thread = threading.Thread(target=backend.serve_forever, daemon=True)
+        thread.start()
+        self.manager.child_port = backend.server_port
+        try:
+            self.assertEqual(self.request("/api/config"), (200, initial))
+            for path, size in (("/api/config", 1024 * 1024 + 1),
+                               ("/api/config?source=web", 4 * 1024 * 1024)):
+                with self.subTest(path=path, size=size):
+                    prefix, suffix = b'{"note":"', b'"}'
+                    raw = prefix + b"x" * (size - len(prefix) - len(suffix)) + suffix
+                    self.assertEqual(self.request(path, "PUT", raw), (200, b"{}"))
+                    self.assertEqual(received[-1], (path, raw))
+
+            # 只发送超限长度头，避免提前拒绝后客户端发送大正文造成连接错误。
+            for path, method, size in (("/api/config", "PUT", 4 * 1024 * 1024 + 1),
+                                       ("/api/config", "POST", 1024 * 1024 + 1),
+                                       ("/api/manual", "PUT", 1024 * 1024 + 1)):
+                with self.subTest(path=path, method=method, size=size):
+                    connection = runtime.http.client.HTTPConnection("127.0.0.1", self.server.server_port, timeout=3)
+                    try:
+                        connection.putrequest(method, path)
+                        connection.putheader("Content-Length", str(size))
+                        connection.endheaders()
+                        response = connection.getresponse()
+                        self.assertEqual(response.status, 413)
+                        self.assertIn("超过大小限制", json.loads(response.read())["error"])
+                    finally:
+                        connection.close()
+            self.assertEqual(len(received), 2)
+        finally:
+            backend.shutdown()
+            backend.server_close()
+            thread.join(2)
+
     def test_proxy_http_post_sse_and_backend_unavailable(self):
         class Backend(BaseHTTPRequestHandler):
             def do_GET(self):

@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -54,49 +55,27 @@ func run(configPath, httpAddr, logFile string) error {
 		return err
 	}
 
-	now := time.Now()
-	var buses []*sim.Bus
-
-	for _, bc := range cfg.Buses {
-		slaves := make([]*sim.Slave, 0, len(bc.Slaves))
-		for _, sc := range bc.Slaves {
-			sl, err := sim.NewSlave(sc, now)
-			if err != nil {
-				return fmt.Errorf("总线 %s 构造从站 %d 失败: %w", bc.Name, sc.DeviceID, err)
-			}
-			slaves = append(slaves, sl)
-		}
-
-		bus := sim.NewBus(bc.Name, bc.Link, slaves, logs)
-		if err := os.MkdirAll(filepath.Dir(bc.Link), 0o755); err != nil {
-			return fmt.Errorf("创建软链接目录 %s 失败: %w", filepath.Dir(bc.Link), err)
-		}
-		if err := bus.Open(); err != nil {
-			return err
-		}
-		buses = append(buses, bus)
+	manager, err := sim.NewManager(configPath, cfg, logs)
+	if err != nil {
+		return err
 	}
-
-	for _, b := range buses {
-		b.Start()
-		logs.Publish(eventbus.Event{
-			Level:   eventbus.LevelInfo,
-			Bus:     b.Name,
-			Summary: fmt.Sprintf("虚拟串口已就绪: 软链接=%s 实际设备=%s 从站数=%d", b.LinkPath, b.SlavePath(), len(b.Slaves())),
-		})
-	}
+	defer manager.Close()
 
 	srv := &http.Server{
 		Addr:              httpAddr,
-		Handler:           newHandler(buses, logs),
+		Handler:           web.New(manager, logs).Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	errCh := make(chan error, 1)
 	go func() {
+		displayAddr := httpAddr
+		if strings.HasPrefix(displayAddr, ":") {
+			displayAddr = "0.0.0.0" + displayAddr
+		}
 		logs.Publish(eventbus.Event{
 			Level:   eventbus.LevelInfo,
-			Summary: fmt.Sprintf("WebUI 已启动: http://0.0.0.0%s", httpAddr),
+			Summary: fmt.Sprintf("WebUI 已启动: http://%s", displayAddr),
 		})
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			errCh <- fmt.Errorf("WebUI 启动失败: %w", err)
@@ -108,7 +87,6 @@ func run(configPath, httpAddr, logFile string) error {
 
 	select {
 	case err := <-errCh:
-		closeBuses(buses, logs)
 		return err
 	case sig := <-stop:
 		logs.Publish(eventbus.Event{Level: eventbus.LevelInfo, Summary: fmt.Sprintf("收到信号 %v，正在退出", sig)})
@@ -117,16 +95,7 @@ func run(configPath, httpAddr, logFile string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	_ = srv.Shutdown(ctx)
-	closeBuses(buses, logs)
 	return nil
-}
-
-func closeBuses(buses []*sim.Bus, logs *eventbus.Log) {
-	for _, b := range buses {
-		if err := b.Close(); err != nil {
-			logs.Publish(eventbus.Event{Level: eventbus.LevelWarn, Bus: b.Name, Summary: fmt.Sprintf("关闭总线失败: %v", err)})
-		}
-	}
 }
 
 // consoleLogger 把日志同时输出到标准输出与可选的文件。
@@ -189,9 +158,4 @@ func formatEvent(e eventbus.Event) string {
 		line += " " + e.Summary
 	}
 	return line
-}
-
-// newHandler 组装 WebUI 的 HTTP 处理器。
-func newHandler(buses []*sim.Bus, logs *eventbus.Log) http.Handler {
-	return web.New(buses, logs).Handler()
 }

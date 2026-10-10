@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"time"
 
+	"slavesim/internal/config"
 	"slavesim/internal/eventbus"
 	"slavesim/internal/modbus"
 	"slavesim/internal/sim"
@@ -54,13 +55,13 @@ type State struct {
 
 // Server 是 slaveSim 的 HTTP 服务。
 type Server struct {
-	buses []*sim.Bus
-	log   *eventbus.Log
+	manager *sim.Manager
+	log     *eventbus.Log
 }
 
 // New 构造 HTTP 服务。
-func New(buses []*sim.Bus, log *eventbus.Log) *Server {
-	return &Server{buses: buses, log: log}
+func New(manager *sim.Manager, log *eventbus.Log) *Server {
+	return &Server{manager: manager, log: log}
 }
 
 // Handler 返回注册好全部路由的处理器。
@@ -69,6 +70,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/state", s.handleState)
 	mux.HandleFunc("/api/events", s.handleEvents)
 	mux.HandleFunc("/api/manual", s.handleManual)
+	mux.HandleFunc("/api/config", s.handleConfig)
 
 	sub, err := fs.Sub(staticFiles, "static")
 	if err != nil {
@@ -83,35 +85,38 @@ func (s *Server) Snapshot() State {
 	now := time.Now()
 	st := State{Now: now}
 
-	for _, b := range s.buses {
-		bv := BusView{
-			Name:      b.Name,
-			LinkPath:  b.LinkPath,
-			SlavePath: b.SlavePath(),
-		}
-		for _, sl := range b.Slaves() {
-			sv := SlaveView{DeviceID: int(sl.DeviceID)}
-			for _, reg := range sl.Registers() {
-				raw := reg.RawRegisters(now)
-				bytesOut := make([]byte, 0, len(raw)*2)
-				for _, v := range raw {
-					bytesOut = append(bytesOut, byte(v>>8), byte(v))
-				}
-				sv.Registers = append(sv.Registers, RegisterView{
-					Function: fmt.Sprintf("0x%02X", reg.Function),
-					Address:  reg.Address,
-					Type:     reg.Type.String(),
-					Tag:      reg.Tag,
-					Unit:     reg.Unit,
-					Writable: reg.Writable,
-					Value:    reg.Value(now),
-					Raw:      modbus.Hex(bytesOut),
-				})
+	s.manager.WithBuses(func(buses []*sim.Bus) {
+		for _, b := range buses {
+			name, slaves := b.Info()
+			bv := BusView{
+				Name:      name,
+				LinkPath:  b.LinkPath,
+				SlavePath: b.SlavePath(),
 			}
-			bv.Slaves = append(bv.Slaves, sv)
+			for _, sl := range slaves {
+				sv := SlaveView{DeviceID: int(sl.DeviceID)}
+				for _, reg := range sl.Registers() {
+					raw := reg.RawRegisters(now)
+					bytesOut := make([]byte, 0, len(raw)*2)
+					for _, v := range raw {
+						bytesOut = append(bytesOut, byte(v>>8), byte(v))
+					}
+					sv.Registers = append(sv.Registers, RegisterView{
+						Function: fmt.Sprintf("0x%02X", reg.Function),
+						Address:  reg.Address,
+						Type:     reg.Type.String(),
+						Tag:      reg.Tag,
+						Unit:     reg.Unit,
+						Writable: reg.Writable,
+						Value:    reg.Value(now),
+						Raw:      modbus.Hex(bytesOut),
+					})
+				}
+				bv.Slaves = append(bv.Slaves, sv)
+			}
+			st.Buses = append(st.Buses, bv)
 		}
-		st.Buses = append(st.Buses, bv)
-	}
+	})
 	return st
 }
 
@@ -119,13 +124,36 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.Snapshot())
 }
 
+func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	switch r.Method {
+	case http.MethodGet:
+		writeJSON(w, http.StatusOK, s.manager.Config())
+	case http.MethodPut:
+		cfg, err := config.Decode(http.MaxBytesReader(w, r.Body, 4<<20))
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		if err := s.manager.Apply(cfg); err != nil {
+			s.log.Publish(eventbus.Event{Level: eventbus.LevelError, Summary: fmt.Sprintf("Web 配置保存失败: %v", err)})
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"result": "ok", "message": "配置已保存并应用"})
+	default:
+		w.Header().Set("Allow", "GET, PUT")
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "只支持 GET 或 PUT"})
+	}
+}
+
 // manualRequest 是界面手动设置寄存器数值的请求体。
 type manualRequest struct {
-	Bus       string  `json:"bus"`
-	DeviceID  int     `json:"device_id"`
-	Function  string  `json:"function"`
-	Address   uint16  `json:"address"`
-	Value     float64 `json:"value"`
+	Bus      string  `json:"bus"`
+	DeviceID int     `json:"device_id"`
+	Function string  `json:"function"`
+	Address  uint16  `json:"address"`
+	Value    float64 `json:"value"`
 }
 
 func (s *Server) handleManual(w http.ResponseWriter, r *http.Request) {
@@ -146,30 +174,33 @@ func (s *Server) handleManual(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	for _, b := range s.buses {
-		if b.Name != req.Bus {
-			continue
-		}
-		for _, sl := range b.Slaves() {
-			if int(sl.DeviceID) != req.DeviceID {
+	s.manager.WithBuses(func(buses []*sim.Bus) {
+		for _, b := range buses {
+			name, slaves := b.Info()
+			if name != req.Bus {
 				continue
 			}
-			reg := sl.Find(fn, req.Address)
-			if reg == nil {
-				writeJSON(w, http.StatusNotFound, map[string]string{"error": "未找到对应的寄存器"})
+			for _, sl := range slaves {
+				if int(sl.DeviceID) != req.DeviceID {
+					continue
+				}
+				reg := sl.Find(fn, req.Address)
+				if reg == nil {
+					writeJSON(w, http.StatusNotFound, map[string]string{"error": "未找到对应的寄存器"})
+					return
+				}
+				reg.SetManual(req.Value)
+				s.log.Publish(eventbus.Event{
+					Level:   eventbus.LevelInfo,
+					Bus:     name,
+					Summary: fmt.Sprintf("界面手动设置: 功能码=0x%02X 地址=%d 值=%v", fn, req.Address, req.Value),
+				})
+				writeJSON(w, http.StatusOK, map[string]string{"result": "ok"})
 				return
 			}
-			reg.SetManual(req.Value)
-			s.log.Publish(eventbus.Event{
-				Level:   eventbus.LevelInfo,
-				Bus:     b.Name,
-				Summary: fmt.Sprintf("界面手动设置: 功能码=0x%02X 地址=%d 值=%v", fn, req.Address, req.Value),
-			})
-			writeJSON(w, http.StatusOK, map[string]string{"result": "ok"})
-			return
 		}
-	}
-	writeJSON(w, http.StatusNotFound, map[string]string{"error": "未找到对应的总线或从站"})
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "未找到对应的总线或从站"})
+	})
 }
 
 func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
