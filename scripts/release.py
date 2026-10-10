@@ -220,6 +220,58 @@ def upload(source: Path, key: str, bucket: str, endpoint: str, content_type: str
                     "--cache-control", cache_control, "--only-show-errors"], check=True)
 
 
+def list_channel_objects(bucket: str, endpoint: str, channel_root: str) -> set[str]:
+    """完整读取并校验所有分页；列举失败时不能产生部分删除计划。"""
+    keys = set()
+    tokens = set()
+    token = None
+    while True:
+        args = ["aws", "s3api", "list-objects-v2", "--bucket", bucket, "--prefix", channel_root,
+                "--endpoint-url", endpoint, "--region", "auto", "--output", "json", "--no-paginate"]
+        if token is not None:
+            args += ["--continuation-token", token]
+        result = subprocess.run(args, check=True, capture_output=True, text=True, encoding="utf-8")
+        page = json.loads(result.stdout)
+        if (not isinstance(page, dict) or type(page.get("IsTruncated")) is not bool
+                or not isinstance(page.get("Contents", []), list)):
+            raise ValueError("R2 对象列表格式不合法，拒绝清理")
+        for entry in page.get("Contents", []):
+            key = entry.get("Key") if isinstance(entry, dict) else None
+            if not isinstance(key, str) or not key.startswith(channel_root):
+                raise ValueError("R2 对象列表越出当前通道，拒绝清理")
+            keys.add(key)
+        if not page["IsTruncated"]:
+            return keys
+        token = page.get("NextContinuationToken")
+        if not isinstance(token, str) or not token or token in tokens:
+            raise ValueError("R2 对象列表分页异常，拒绝清理")
+        tokens.add(token)
+
+
+def cleanup_old_versions(*, bucket: str, endpoint: str, channel_root: str, keep_keys: set[str],
+                         manifest: dict, latest_url: str) -> int:
+    # 仅使用发布器已验证的精确对象键；不对桶或前缀执行递归删除。
+    if not channel_root.endswith("/") or not keep_keys or any(
+            not key.startswith(channel_root) for key in keep_keys):
+        raise ValueError("R2 清理保留列表越出当前通道")
+    keys = list_channel_objects(bucket, endpoint, channel_root)
+    if not keep_keys <= keys:
+        raise ValueError("R2 最新版本对象缺失，拒绝清理")
+    if get_json(latest_url) != manifest:
+        raise ValueError("公开入口已变化，拒绝清理旧版本")
+    obsolete = sorted(keys - keep_keys)
+    for key in obsolete:
+        print(f"删除 R2 旧对象: {key}")
+        subprocess.run(["aws", "s3api", "delete-object", "--bucket", bucket, "--key", key,
+                        "--endpoint-url", endpoint, "--region", "auto", "--output", "json"],
+                       check=True, capture_output=True)
+    if list_channel_objects(bucket, endpoint, channel_root) != keep_keys:
+        raise ValueError("R2 清理后对象列表与保留列表不一致，请重跑发布")
+    print(f"R2 通道清理完成: 前缀={channel_root} 保留版本={manifest['version']} "
+          f"删除对象={len(obsolete)} 保留对象={len(keep_keys)}")
+    return len(obsolete)
+
+
 def publish(*, output_dir: Path, bucket: str, prefix: str, endpoint: str,
             public_base_url: str) -> dict:
     output_dir = Path(output_dir)
@@ -295,13 +347,17 @@ def publish(*, output_dir: Path, bucket: str, prefix: str, endpoint: str,
         verify_asset(immutable_url, digest(output_dir / "release.json"), (output_dir / "release.json").stat().st_size)
     else:
         manifest = existing
-    # latest 仅在全部版本资产公开可下载且完整后更新；保留历史版本供回退。
+    # latest 仅在全部版本资产公开可下载且完整后更新，验证入口后才清理旧版本。
     with tempfile.TemporaryDirectory(prefix="slavesim-latest-") as temporary:
         latest = Path(temporary) / "latest.json"
         latest.write_bytes(json_bytes(manifest))
         upload(latest, latest_key, bucket, endpoint, "application/json; charset=utf-8", "no-store")
         if get_json(encoded_url(base, latest_key)) != manifest:
             raise ValueError("公开 latest.json 与发布清单不一致")
+    cleanup_old_versions(bucket=bucket, endpoint=endpoint,
+                         channel_root=f"{prefix}/{manifest['channel']}/",
+                         keep_keys={latest_key, version_key + "/release.json", *(key for _, key, *_ in assets)},
+                         manifest=manifest, latest_url=encoded_url(base, latest_key))
     print(f"R2 发布完成: {encoded_url(base, latest_key)}")
     return manifest
 

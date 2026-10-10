@@ -50,9 +50,11 @@ class ReleaseTests(unittest.TestCase):
         return release.prepare(**(self.options | changes))
 
     def publish(self, **changes):
-        return release.publish(**(dict(output_dir=self.output, bucket="mskdsp-update",
-                                       prefix="slavesim", endpoint="https://account.r2.cloudflarestorage.com",
-                                       public_base_url="https://updates.example") | changes))
+        # 此处验证上传契约；真实清理调用、分页与删除时序另由 test_retention 验证。
+        with patch.object(release, "cleanup_old_versions"):
+            return release.publish(**(dict(output_dir=self.output, bucket="mskdsp-update",
+                                           prefix="slavesim", endpoint="https://account.r2.cloudflarestorage.com",
+                                           public_base_url="https://updates.example") | changes))
 
     def test_prepare_rejects_missing_architecture_before_writing(self):
         # 缺少任一架构时不得发布仅有一半平台的清单。
