@@ -220,6 +220,17 @@ class ReleaseTests(unittest.TestCase):
             with self.subTest(target=target), self.assertRaisesRegex(ValueError, "重定向"):
                 release.RejectRedirect().redirect_request(None, None, 302, "Found", {}, target)
 
+    def test_public_requests_identify_publisher(self):
+        # Cloudflare 拒绝 urllib 默认标识；所有公共校验请求应标识发布工具。
+        request = release.Request("https://updates.example/release.json",
+                                  headers={"Cache-Control": "no-cache"})
+        with patch.object(release, "build_opener") as opener:
+            release.urlopen(request, timeout=15)
+        self.assertEqual(request.get_header("User-agent"), "slavesim-publisher/1")
+        self.assertEqual(request.get_header("Cache-control"), "no-cache")
+        self.assertIsInstance(opener.call_args.args[0], release.RejectRedirect)
+        opener.return_value.open.assert_called_once_with(request, timeout=15)
+
     def test_download_checks_sha256_and_length(self):
         # 公共文件只要摘要或大小不一致就拒绝，避免上传损坏资产后切换清单。
         data = b"package contents"

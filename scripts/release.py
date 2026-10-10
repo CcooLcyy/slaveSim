@@ -36,6 +36,8 @@ class RejectRedirect(HTTPRedirectHandler):
 
 def urlopen(request, timeout=30):
     # R2 公共对象无需跳转，避免校验请求被重定向到其他来源或明文连接。
+    # 显式标识发布工具，避免 Cloudflare 拒绝 urllib 的默认请求标识。
+    request.add_header("User-Agent", "slavesim-publisher/1")
     return build_opener(RejectRedirect()).open(request, timeout=timeout)
 
 
