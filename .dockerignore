@@ -2,6 +2,7 @@
 !go.mod
 !main.go
 !version.go
+!VERSION
 !internal
 !cmd
 !config.example.json

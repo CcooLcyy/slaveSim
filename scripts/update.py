@@ -18,6 +18,8 @@ import time
 from urllib.parse import unquote, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
+from versioning import image_name, validate_commit, version_order
+
 try:
     import fcntl
 except ImportError:
@@ -92,16 +94,10 @@ def platform_key():
 
 
 def version_tuple(channel, version):
-    expression = r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
-    if channel == "ci":
-        match = re.fullmatch(r"0\.0\.0-ci\.([1-9][0-9]*)\.([1-9][0-9]*)", version)
-    elif channel == "stable":
-        match = re.fullmatch(expression, version)
-    else:
-        raise UpdateError("发布通道必须为 ci 或 stable")
-    if not match:
-        raise UpdateError("版本号与发布通道不匹配：" + str(version))
-    return tuple(int(part) for part in match.groups())
+    try:
+        return version_order(channel, version)
+    except ValueError as exc:
+        raise UpdateError(str(exc)) from exc
 
 
 def validate_manifest(data, manifest_url, selected_platform):
@@ -113,8 +109,10 @@ def validate_manifest(data, manifest_url, selected_platform):
     if base.path.split("/")[-2:] != [data["channel"], "latest.json"]:
         raise UpdateError("版本清单地址与发布通道不一致")
     version_tuple(data["channel"], str(data.get("version", "")))
-    if not re.fullmatch(r"[0-9a-f]{40}", str(data.get("commit", ""))):
-        raise UpdateError("版本清单提交号不正确")
+    try:
+        validate_commit(data["channel"], data["version"], str(data.get("commit", "")))
+    except ValueError as exc:
+        raise UpdateError("版本清单提交号不正确：" + str(exc)) from exc
     try:
         published = datetime.fromisoformat(str(data.get("published_at", "")).replace("Z", "+00:00"))
         if published.tzinfo is None:
@@ -134,7 +132,7 @@ def validate_manifest(data, manifest_url, selected_platform):
             raise UpdateError("镜像包 SHA-256 不正确")
         if not re.fullmatch(r"sha256:[0-9a-f]{64}", str(artifact.get("image_id", ""))):
             raise UpdateError("镜像内容 ID 不正确")
-        if artifact.get("image") != "slavesim:" + data["version"] + "-" + key.split("-")[1]:
+        if artifact.get("image") != image_name(data["version"], key.split("-")[1]):
             raise UpdateError("镜像标签与版本和架构不匹配")
         binary_fields = ("binary_url", "binary_sha256", "binary_size")
         if any(field in artifact for field in binary_fields):
@@ -155,6 +153,8 @@ def needs_update(manifest, state):
     new = version_tuple(manifest["channel"], manifest["version"])
     old = version_tuple(old_channel, str(state.get("version", "")))
     if new == old:
+        if manifest["version"] != state.get("version"):
+            raise UpdateError("同一构建时间对应不同版本身份，拒绝覆盖")
         if manifest["commit"] != state.get("commit"):
             raise UpdateError("同版本对应不同提交，拒绝覆盖")
         selected = state.get("platform")
@@ -436,7 +436,7 @@ def apply_update(folder, allow_initial_install=False, runner=run):
 
 def init_deployment(folder, config, serial_dir, log_dir, http_port, manifest_url):
     validate_url(manifest_url)
-    if any((folder / name).exists() for name in ("updater.json", "state.json", ".env", "update.py", "compose.release.yml")):
+    if any((folder / name).exists() for name in ("updater.json", "state.json", ".env", "update.py", "versioning.py", "compose.release.yml")):
         raise UpdateError("部署目录已经初始化，拒绝覆盖")
     if not config.is_file():
         raise UpdateError("请提供既有 config.json，更新器不会生成现场配置")
@@ -450,6 +450,7 @@ def init_deployment(folder, config, serial_dir, log_dir, http_port, manifest_url
     log_dir.mkdir(parents=True, exist_ok=True)
     source = Path(__file__).resolve().parents[1] / "deploy/compose.release.yml"
     shutil.copyfile(source, folder / "compose.release.yml")
+    shutil.copyfile(Path(__file__).with_name("versioning.py"), folder / "versioning.py")
     shutil.copyfile(Path(__file__).resolve(), folder / "update.py")
     atomic_json(folder / "updater.json", settings)
     settings_for(folder)

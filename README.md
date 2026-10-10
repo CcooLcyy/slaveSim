@@ -117,7 +117,11 @@ go test ./...
 
 ## R2 发布与自动更新
 
+基础版本由根目录 `VERSION` 管理，当前为 `0.0.1`。本地普通构建显示 `0.0.1-dev`，CI 测试版采用上位机的编号风格：`0.0.1-ci.20261010t083000+sha.abcdef1`（时间为 UTC，提交号取前 7 位）。CI 与发布工作流都为两个架构注入同一份版本元数据。
+
 推送 `master` 后，GitHub Actions 自动将双架构二进制包和 Docker 镜像包发布到 R2 的 `slavesim/ci` 通道；正式标签 `vX.Y.Z` 发布到 `slavesim/stable`。首次使用需要配置三个 R2 Actions Secrets。
+
+正式标签须与该提交的 `VERSION` 一致；Docker 标签和资产路径把版本中的 `+` 转为 `_`。旧 CI 编号仍可读取，已部署设备须先单独迁移更新脚本与共享版本模块，详见 [版本编号与迁移](doc/版本编号方案.md)。
 
 - [测试通道清单](https://pub-19f3d71852b04011b120b1b814141c12.r2.dev/slavesim/ci/latest.json)
 - [稳定通道清单](https://pub-19f3d71852b04011b120b1b814141c12.r2.dev/slavesim/stable/latest.json)（首次正式发版后可用）

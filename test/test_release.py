@@ -7,11 +7,13 @@ import json
 from pathlib import Path
 import tarfile
 import tempfile
+import sys
 import unittest
 from unittest.mock import patch
 from urllib.error import HTTPError
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "release.py"
+sys.path.insert(0, str(SCRIPT.parent))
 SPEC = importlib.util.spec_from_file_location("slavesim_release", SCRIPT)
 release = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(release)

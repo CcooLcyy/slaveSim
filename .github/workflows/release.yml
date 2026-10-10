@@ -38,6 +38,7 @@ jobs:
     outputs:
       channel: ${{ steps.metadata.outputs.channel }}
       version: ${{ steps.metadata.outputs.version }}
+      image_tag: ${{ steps.metadata.outputs.image_tag }}
       commit: ${{ steps.metadata.outputs.commit }}
       published_at: ${{ steps.metadata.outputs.published_at }}
     steps:
@@ -54,28 +55,33 @@ jobs:
           EVENT_REF: ${{ github.ref }}
         run: |
           python3 - <<'PY'
-          import os, re, subprocess
+          import os, subprocess
+          from pathlib import Path
+          from scripts.versioning import build_metadata, read_base_version
           channel = os.environ.get('CHANNEL_INPUT') or ('stable' if os.environ['EVENT_REF'].startswith('refs/tags/') else 'ci')
           ref = os.environ.get('REF_INPUT') or os.environ['EVENT_REF']
           commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          base_version = read_base_version(Path('VERSION'))
+          tag = None
+          built_at = None
           if channel == 'stable':
               tag = ref.removeprefix('refs/tags/')
-              if not re.fullmatch(r'v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)', tag):
-                  raise SystemExit('稳定通道必须指定正式版本标签 vX.Y.Z')
+              if tag != 'v' + base_version:
+                  raise SystemExit('正式版本标签必须与 VERSION 中的基础版本完全一致')
               tagged = subprocess.check_output(['git', 'rev-parse', f'refs/tags/{tag}^{{commit}}'], text=True).strip()
               if tagged != commit:
                   raise SystemExit('当前提交与正式版本标签不一致')
               subprocess.run(['git', 'merge-base', '--is-ancestor', commit, 'origin/master'], check=True)
-              version = tag[1:]
+              # 正式版本沿用提交时间，确保重跑时不会改变二进制的构建时间。
+              built_at = subprocess.check_output(['git', 'show', '-s', '--format=%cI', 'HEAD'], text=True).strip()
           else:
               if ref not in ('master', 'refs/heads/master'):
                   raise SystemExit('测试通道只能发布 master')
-              version = f"0.0.0-ci.{os.environ['GITHUB_RUN_NUMBER']}.{os.environ['GITHUB_RUN_ATTEMPT']}"
-          published_at = subprocess.check_output(['git', 'show', '-s', '--format=%cI', 'HEAD'], text=True).strip()
+          data = build_metadata(channel, commit, base_version, timestamp=built_at, tag=tag)
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
-              for key, value in dict(channel=channel, version=version, commit=commit, published_at=published_at).items():
+              for key, value in data.items():
                   output.write(f'{key}={value}\n')
-          print(f'发布目标：通道={channel} 版本={version} 提交={commit}')
+          print(f"发布目标：通道={channel} 版本={data['version']} 提交={commit} 构建时间={data['published_at']} 镜像标签={data['image_tag']}")
           PY
       - name: 发布与自动更新工具测试
         run: python3 -m unittest discover -s test -p 'test_*.py' -v
@@ -110,6 +116,7 @@ jobs:
         env:
           ARCH: ${{ matrix.arch }}
           VERSION: ${{ needs.resolve.outputs.version }}
+          IMAGE_TAG: ${{ needs.resolve.outputs.image_tag }}
           COMMIT: ${{ needs.resolve.outputs.commit }}
           BUILD_TIME: ${{ needs.resolve.outputs.published_at }}
           CGO_ENABLED: '0'
@@ -121,10 +128,10 @@ jobs:
           go build -trimpath -ldflags '-s -w' -o "dist/$ARCH/probe" ./cmd/probe
           "dist/$ARCH/slavesim" -version
           source_epoch=$(git show -s --format=%ct HEAD)
-          docker build --provenance=false --platform "linux/$ARCH" --build-arg GO_IMAGE=golang:1.24-alpine --build-arg "SOURCE_DATE_EPOCH=$source_epoch" --build-arg "VERSION=$VERSION" --build-arg "COMMIT=$COMMIT" --build-arg "BUILD_TIME=$BUILD_TIME" -t "slavesim:$VERSION-$ARCH" .
-          docker save "slavesim:$VERSION-$ARCH" | gzip -n > "dist/$ARCH/slavesim-image.tar.gz"
-          python3 scripts/update.py image-id --archive "dist/$ARCH/slavesim-image.tar.gz" --image "slavesim:$VERSION-$ARCH" > "dist/$ARCH/image-id.txt"
-          docker run --rm "slavesim:$VERSION-$ARCH" -version
+          docker build --provenance=false --platform "linux/$ARCH" --build-arg GO_IMAGE=golang:1.24-alpine --build-arg "SOURCE_DATE_EPOCH=$source_epoch" --build-arg "VERSION=$VERSION" --build-arg "COMMIT=$COMMIT" --build-arg "BUILD_TIME=$BUILD_TIME" -t "slavesim:$IMAGE_TAG-$ARCH" .
+          docker save "slavesim:$IMAGE_TAG-$ARCH" | gzip -n > "dist/$ARCH/slavesim-image.tar.gz"
+          python3 scripts/update.py image-id --archive "dist/$ARCH/slavesim-image.tar.gz" --image "slavesim:$IMAGE_TAG-$ARCH" > "dist/$ARCH/image-id.txt"
+          docker run --rm "slavesim:$IMAGE_TAG-$ARCH" -version
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.arch }}
@@ -160,7 +167,7 @@ jobs:
           python3 scripts/release.py prepare --input-dir dist --output-dir release --version "$VERSION" --channel "$CHANNEL" --commit "$COMMIT" --published-at "$PUBLISHED_AT" --public-base-url "$R2_PUBLIC_BASE_URL" --prefix "$R2_PREFIX"
       - uses: actions/upload-artifact@v4
         with:
-          name: release-${{ needs.resolve.outputs.version }}
+          name: release-${{ needs.resolve.outputs.image_tag }}
           path: release/
           if-no-files-found: error
       - name: 校验 R2 凭据与 AWS CLI

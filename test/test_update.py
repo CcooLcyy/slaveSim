@@ -7,11 +7,13 @@ import json
 import os
 from pathlib import Path
 import tempfile
+import sys
 import tarfile
 import unittest
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
 spec = importlib.util.spec_from_file_location("slavesim_update", ROOT / "scripts/update.py")
 update = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(update)
@@ -164,12 +166,12 @@ class DeploymentTests(unittest.TestCase):
                 "com.docker.compose.service": "slavesim"}}}])
         return ""
 
-    def apply(self, health=True, digests=None):
+    def apply(self, health=True, digests=None, item=None):
         archive = self.folder / "download.tar.gz"
         archive.write_bytes(b"archive")
         with mock.patch.object(update.platform, "system", return_value="Linux"), \
              mock.patch.object(update, "file_lock"), \
-             mock.patch.object(update, "fetch_manifest", return_value=manifest()), \
+             mock.patch.object(update, "fetch_manifest", return_value=item or manifest()), \
              mock.patch.object(update, "platform_key", return_value="linux-amd64"), \
              mock.patch.object(update, "download_artifact", return_value=archive), \
              mock.patch.object(update, "image_archive_digest", **({"side_effect": digests} if digests else {"return_value": IMAGE_ID})), \

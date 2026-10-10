@@ -14,10 +14,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  metadata:
+    name: 生成两个架构共用的 CI 版本
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.metadata.outputs.version }}
+      image_tag: ${{ steps.metadata.outputs.image_tag }}
+      commit: ${{ steps.metadata.outputs.commit }}
+      published_at: ${{ steps.metadata.outputs.published_at }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: 生成构建元数据
+        id: metadata
+        run: python3 scripts/versioning.py --commit "$GITHUB_SHA" --github-output "$GITHUB_OUTPUT"
+
   # 两个架构各自在**原生** runner 上运行。arm64 使用 GitHub 托管的 arm64
   # runner，因此走真实 PTY 的集成测试是在 arm64 上真正执行，
   # 而不是"交叉编译完就不验证"。
   test:
+    needs: metadata
     name: ${{ matrix.arch }} 静态检查、测试与产物
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 15
@@ -59,10 +77,14 @@ jobs:
           GOOS: linux
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: '0'
+          VERSION: ${{ needs.metadata.outputs.version }}
+          COMMIT: ${{ needs.metadata.outputs.commit }}
+          BUILD_TIME: ${{ needs.metadata.outputs.published_at }}
         run: |
           mkdir -p dist
-          go build -trimpath -ldflags "-s -w" -o dist/slavesim-linux-${{ matrix.goarch }} .
+          go build -trimpath -ldflags "-s -w -X main.version=$VERSION -X main.commit=$COMMIT -X main.buildTime=$BUILD_TIME" -o dist/slavesim-linux-${{ matrix.goarch }} .
           go build -trimpath -ldflags "-s -w" -o dist/probe-linux-${{ matrix.goarch }} ./cmd/probe
+          dist/slavesim-linux-${{ matrix.goarch }} -version
           ls -l dist
 
       - name: 上传产物
@@ -75,6 +97,7 @@ jobs:
   # 验证镜像的交叉构建路径：在 x64 runner 上直接产出 linux/arm64 镜像。
   # 因为运行阶段是 scratch 且无 RUN 指令，整个过程不需要 qemu。
   docker-cross:
+    needs: metadata
     name: 镜像交叉构建（linux/arm64）
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -85,7 +108,11 @@ jobs:
           persist-credentials: false
 
       - name: 构建 arm64 镜像
-        run: docker build --platform linux/arm64 -t slavesim:arm64 .
+        env:
+          VERSION: ${{ needs.metadata.outputs.version }}
+          COMMIT: ${{ needs.metadata.outputs.commit }}
+          BUILD_TIME: ${{ needs.metadata.outputs.published_at }}
+        run: docker build --platform linux/arm64 --build-arg "VERSION=$VERSION" --build-arg "COMMIT=$COMMIT" --build-arg "BUILD_TIME=$BUILD_TIME" -t slavesim:arm64 .
 
       - name: 校验镜像架构与内容
         run: |

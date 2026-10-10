@@ -19,14 +19,14 @@ from urllib.error import HTTPError
 from urllib.parse import quote, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
+from versioning import artifact_version, image_name, validate_commit, version_order
+
 ARCHES = ("amd64", "arm64")
 SOURCE_DIR = Path(__file__).resolve().parents[1]
-PACKAGE_FILES = ("config.example.json", "README.md", "scripts/update.py",
+PACKAGE_FILES = ("config.example.json", "README.md", "VERSION", "scripts/update.py", "scripts/versioning.py",
                  "deploy/compose.release.yml", "deploy/slavesim-update.service",
                  "deploy/slavesim-update.timer")
-HEX40 = re.compile(r"^[0-9a-f]{40}$")
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
-SEMVER = r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
 
 
 class RejectRedirect(HTTPRedirectHandler):
@@ -39,14 +39,6 @@ def urlopen(request, timeout=30):
     # 显式标识发布工具，避免 Cloudflare 拒绝 urllib 的默认请求标识。
     request.add_header("User-Agent", "slavesim-publisher/1")
     return build_opener(RejectRedirect()).open(request, timeout=timeout)
-
-
-def version_order(channel: str, version: str) -> tuple[int, ...]:
-    if channel == "stable" and re.fullmatch(SEMVER, version):
-        return tuple(map(int, version.split(".")))
-    if channel == "ci" and re.fullmatch(r"0\.0\.0-ci\.[1-9][0-9]*\.[1-9][0-9]*", version):
-        return tuple(map(int, version.split("-ci.")[1].split(".")))
-    raise ValueError("远端最新清单中的版本与通道不一致")
 
 
 def public_url(value: str) -> str:
@@ -75,11 +67,7 @@ def valid_prefix(value: str) -> str:
 def metadata(version: str, channel: str, commit: str, prefix: str, base_url: str) -> tuple[str, str]:
     if channel not in ("ci", "stable"):
         raise ValueError("发布通道只能是 ci 或 stable")
-    pattern = SEMVER if channel == "stable" else r"0\.0\.0-ci\.[1-9][0-9]*\.[1-9][0-9]*"
-    if not re.fullmatch(pattern, version):
-        raise ValueError(f"{channel} 通道版本格式不合法: {version}")
-    if not HEX40.fullmatch(commit):
-        raise ValueError("来源提交必须是 40 位小写十六进制 SHA")
+    validate_commit(channel, version, commit)
     return valid_prefix(prefix), public_url(base_url)
 
 
@@ -160,28 +148,29 @@ def prepare(*, input_dir: Path, output_dir: Path, version: str, channel: str,
         when = existing["published_at"]
     manifest = {"schema_version": 1, "project": "slavesim", "channel": channel,
                 "version": version, "commit": commit, "published_at": when, "platforms": {}}
+    asset_version = artifact_version(version)
     checksum_lines = []
     with tempfile.TemporaryDirectory(prefix="slavesim-release-") as temporary:
         staging = Path(temporary)
         for arch in ARCHES:
-            directory = staging / "assets" / version / arch
+            directory = staging / "assets" / asset_version / arch
             directory.mkdir(parents=True)
-            image_name = f"slavesim-{version}-linux-{arch}-image.tar.gz"
-            binary_name = f"slavesim-{version}-linux-{arch}.tar.gz"
-            shutil.copyfile(input_dir / arch / "slavesim-image.tar.gz", directory / image_name)
+            image_file_name = f"slavesim-{asset_version}-linux-{arch}-image.tar.gz"
+            binary_name = f"slavesim-{asset_version}-linux-{arch}.tar.gz"
+            shutil.copyfile(input_dir / arch / "slavesim-image.tar.gz", directory / image_file_name)
             files = [(name, input_dir / arch / name, 0o755) for name in ("slavesim", "probe")]
             files += [(name, source_dir / name, 0o755 if name.endswith(".py") else 0o644) for name in PACKAGE_FILES]
             binary_package(directory / binary_name, files)
-            image_path, binary_path = directory / image_name, directory / binary_name
+            image_path, binary_path = directory / image_file_name, directory / binary_name
             image_sha, binary_sha = digest(image_path), digest(binary_path)
-            key = f"{prefix}/{channel}/{version}/{arch}"
+            key = f"{prefix}/{channel}/{asset_version}/{arch}"
             manifest["platforms"]["linux-" + arch] = {
-                "url": encoded_url(base, key + "/" + image_name), "sha256": image_sha,
-                "size": image_path.stat().st_size, "image": f"slavesim:{version}-{arch}",
+                "url": encoded_url(base, key + "/" + image_file_name), "sha256": image_sha,
+                "size": image_path.stat().st_size, "image": image_name(version, arch),
                 "binary_url": encoded_url(base, key + "/" + binary_name), "binary_sha256": binary_sha,
                 "binary_size": binary_path.stat().st_size,
                 "image_id": (input_dir / arch / "image-id.txt").read_text(encoding="utf-8").strip()}
-            checksum_lines += [f"{image_sha}  {arch}/{image_name}", f"{binary_sha}  {arch}/{binary_name}"]
+            checksum_lines += [f"{image_sha}  {arch}/{image_file_name}", f"{binary_sha}  {arch}/{binary_name}"]
         if existing and not same_release(existing, manifest):
             raise ValueError("拒绝覆盖相同版本下内容不同的发布包")
         # 全部输入、归档和清单通过检查之后才写入最终产物。
@@ -253,19 +242,20 @@ def publish(*, output_dir: Path, bucket: str, prefix: str, endpoint: str,
             or parsed.password is not None or parsed.query or parsed.fragment or "\\" in endpoint
             or any(char.isspace() or ord(char) < 32 for char in endpoint)):
         raise ValueError("R2 endpoint 必须是无凭据的 HTTPS 地址")
-    version_key = f"{prefix}/{manifest['channel']}/{manifest['version']}"
+    asset_version = artifact_version(manifest["version"])
+    version_key = f"{prefix}/{manifest['channel']}/{asset_version}"
     immutable_url = encoded_url(base, version_key + "/release.json")
     assets = []
     for arch in ARCHES:
         entry = manifest["platforms"]["linux-" + arch]
-        if entry.get("image") != f"slavesim:{manifest['version']}-{arch}" or not re.fullmatch(r"sha256:[0-9a-f]{64}", entry.get("image_id", "")):
+        if entry.get("image") != image_name(manifest["version"], arch) or not re.fullmatch(r"sha256:[0-9a-f]{64}", entry.get("image_id", "")):
             raise ValueError(f"{arch} 镜像身份不合法")
         for binary in (False, True):
             marker = "binary_" if binary else ""
             suffix = ".tar.gz" if binary else "-image.tar.gz"
-            name = f"slavesim-{manifest['version']}-linux-{arch}{suffix}"
+            name = f"slavesim-{asset_version}-linux-{arch}{suffix}"
             key = f"{version_key}/{arch}/{name}"
-            path = output_dir / "assets" / manifest["version"] / arch / name
+            path = output_dir / "assets" / asset_version / arch / name
             sha, size = entry[marker + "sha256"], entry[marker + "size"]
             if (entry[marker + "url"] != encoded_url(base, key) or not HEX64.fullmatch(sha)
                     or type(size) is not int or size <= 0 or not path.is_file()

@@ -11,7 +11,7 @@ ARG GO_IMAGE=docker.m.daocloud.io/library/golang:1.24-alpine
 FROM --platform=$BUILDPLATFORM ${GO_IMAGE} AS builder
 
 ARG TARGETARCH
-ARG VERSION=dev
+ARG VERSION
 ARG COMMIT=unknown
 ARG BUILD_TIME=unknown
 
@@ -21,11 +21,13 @@ WORKDIR /src
 COPY go.mod ./
 COPY main.go ./
 COPY version.go ./
+COPY VERSION ./
 COPY internal ./internal
 COPY cmd ./cmd
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} \
-      go build -trimpath -ldflags "-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.buildTime=${BUILD_TIME}" -o /out/slavesim . \
+RUN version=${VERSION:-$(cat VERSION)-dev} \
+ && CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} \
+      go build -trimpath -ldflags "-s -w -X main.version=${version} -X main.commit=${COMMIT} -X main.buildTime=${BUILD_TIME}" -o /out/slavesim . \
  && CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} \
       go build -trimpath -ldflags "-s -w" -o /out/probe ./cmd/probe
 
