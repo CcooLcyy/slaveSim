@@ -52,6 +52,13 @@
   }
   table { width: 100%; border-collapse: collapse; }
   .runtime-table-scroll { overflow-x: auto; }
+  .register-group { min-width: 0; margin: 12px 0; border: 1px solid var(--border); border-radius: 4px; }
+  .register-group > summary { padding: 10px 12px; cursor: pointer; font-weight: 600; background: #fbfcfd; }
+  .register-group > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .register-group[open] > summary { border-bottom: 1px solid var(--border); }
+  .register-group > .register-editor { margin: 0 12px; }
+  .runtime-registers { margin: 0; border: 0; border-radius: 0; }
+  #buses { display: grid; gap: 16px; }
   /* 各总线共用列宽，避免数值刷新触发自动布局；窄屏在表格内滚动。 */
   .runtime-table { table-layout: fixed; min-width: 1100px; }
   .runtime-table .col-id { width: 60px; }
@@ -289,6 +296,8 @@ function fmtTime(iso) {
 
 function render(state) {
   const root = document.getElementById('buses');
+  // 轮询重建表格前读取当前状态，展开或收起后无需等待 toggle 事件。
+  const expanded = new Map(Array.from(root.querySelectorAll('.runtime-registers'), node => [node.dataset.busKey, node.open]));
   root.innerHTML = '';
   for (const bus of state.buses || []) {
     const card = document.createElement('div');
@@ -301,6 +310,16 @@ function render(state) {
     meta.className = 'meta';
     meta.textContent = `下位机 serial.device = ${bus.link_path}   →   实际设备 ${bus.slave_path}`;
     card.appendChild(meta);
+
+    const registers = document.createElement('details');
+    registers.className = 'register-group runtime-registers';
+    registers.dataset.busKey = bus.link_path || bus.name;
+    registers.open = expanded.get(registers.dataset.busKey) ?? false;
+    const summary = document.createElement('summary');
+    const count = (bus.slaves || []).reduce((total, slave) => total + (slave.registers || []).length, 0);
+    summary.textContent = `寄存器列表 · ${(bus.slaves || []).length} 个从站 · ${count} 项`;
+    registers.appendChild(summary);
+    card.appendChild(registers);
 
     for (const slave of bus.slaves || []) {
       const tableScroll = document.createElement('div');
@@ -371,7 +390,7 @@ function render(state) {
       });
       t.appendChild(tb);
       tableScroll.appendChild(t);
-      card.appendChild(tableScroll);
+      registers.appendChild(tableScroll);
     }
     root.appendChild(card);
   }

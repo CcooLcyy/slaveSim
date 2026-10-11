@@ -9,6 +9,7 @@ let draft = null;
 let dirty = false;
 let busy = false;
 const expandedRegisters = new WeakMap();
+const registerGroups = new WeakMap();
 const selectedDeviceTypes = new WeakMap();
 let deviceTemplates = [];
 let templatesLoading = false;
@@ -214,9 +215,16 @@ function renderEditor() {
       field(stationFields, slave, 'unmapped_policy', '未配置地址', { choices: choices([['exception', '返回异常码 0x02'], ['zero', '返回 0']]) });
       station.append(stationHeading, stationFields);
       modelEditor(station, slave);
-      for (const [index, reg] of slave.registers.entries()) registerEditor(station, slave, reg, index);
+      const registers = element('details', 'register-group');
+      // 直接读取上次节点，避免异步 toggle 事件在重绘时丢失展开状态。
+      registers.open = registerGroups.get(slave)?.open ?? false;
+      registerGroups.set(slave, registers);
+      registers.append(element('summary', '', `寄存器列表 · ${slave.registers.length} 项`));
+      for (const [index, reg] of slave.registers.entries()) registerEditor(registers, slave, reg, index);
+      station.append(registers);
       station.append(action('新增寄存器', () => {
         const reg = newRegister(slave.registers);
+        registers.open = true;
         expandedRegisters.set(reg, true);
         slave.registers.push(reg);
       }));
