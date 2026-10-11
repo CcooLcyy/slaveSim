@@ -18,7 +18,9 @@ export function createHuaweiPanel(root, options = {}) {
     const card = { device, dirtyScenario: false, pending: false, inputs: {}, history: [] };
     card.node = element('section', 'card huawei-card');
     const heading = element('div', 'huawei-heading');
-    heading.append(element('h2', '', `华为逆变器仿真 · ${device.bus} / 站号 ${device.device_id}`));
+    const identity = element('div', 'device-identity');
+    identity.append(element('span', 'section-eyebrow', `站号 ${device.device_id} · 行为模型`), element('h3', '', '华为逆变器 · Huawei V3'));
+    heading.append(identity);
     card.status = element('span', 'huawei-status'); heading.append(card.status);
     card.node.append(heading);
     const body = element('div', 'huawei-body');
@@ -35,6 +37,7 @@ export function createHuaweiPanel(root, options = {}) {
     trendLegend.append(element('strong', '', '有功趋势'), element('span', 'huawei-trend-actual', '实际'), element('span', 'huawei-trend-target', '目标'));
     const svg = tag => document.createElementNS('http://www.w3.org/2000/svg', tag);
     card.chart = svg('svg'); card.chart.setAttribute('viewBox', '0 -10 320 140');
+    card.chart.setAttribute('preserveAspectRatio', 'none');
     card.chart.setAttribute('role', 'img'); card.chart.setAttribute('aria-label', '有功趋势，蓝色实线为实际功率，橙色虚线为目标功率');
     card.chart.setAttribute('class', 'huawei-trend-chart');
     for (const y of [0, 60, 120]) {
@@ -58,7 +61,8 @@ export function createHuaweiPanel(root, options = {}) {
       card.phases.push(cells); tbody.append(row);
     }
     table.append(tbody);
-    feedback.append(metrics, trend, card.commands, table); body.append(feedback);
+    card.node.append(metrics);
+    feedback.append(trend, card.commands, table); body.append(feedback);
 
     const controls = element('div', 'huawei-controls');
     const controlForm = element('form'); controlForm.noValidate = true;
@@ -105,7 +109,8 @@ export function createHuaweiPanel(root, options = {}) {
     card.solarValue = element('strong', '', '—');
     const slider = element('input'); slider.type = 'range'; slider.min = 0; slider.max = 100; slider.step = 0.1;
     slider.setAttribute('aria-label', '太阳可用直流功率滑块（kW）');
-    slider.oninput = () => { card.dirtyScenario = true; card.inputs.dc_available_kw.value = slider.value; card.solarValue.textContent = `${slider.value} kW`; };
+    const solarLabel = value => String(value).trim() && Number.isFinite(Number(value)) ? `${Number(value).toFixed(2)} kW` : '—';
+    slider.oninput = () => { card.dirtyScenario = true; card.inputs.dc_available_kw.value = slider.value; card.solarValue.textContent = solarLabel(slider.value); };
     card.slider = slider; solar.append(card.solarValue, slider); scenarioSet.append(solar);
     const scenarioGrid = element('div', 'config-grid');
     for (const field of scenarioFields) {
@@ -115,7 +120,7 @@ export function createHuaweiPanel(root, options = {}) {
       input.oninput = () => {
         card.dirtyScenario = true;
         if (field.key === 'dc_available_kw') {
-          card.solarValue.textContent = input.value ? `${input.value} kW` : '—';
+          card.solarValue.textContent = solarLabel(input.value);
           if (input.value && Number.isFinite(Number(input.value))) slider.value = input.value;
         }
       };
@@ -129,9 +134,9 @@ export function createHuaweiPanel(root, options = {}) {
     };
     scenarioForm.append(scenarioSet, scenarioMessage); controls.append(scenarioForm);
     body.append(controls); card.node.append(body);
-    card.node.append(element('p', 'huawei-boundary', '当前版本按现有点表模拟4路PV、平衡三相；控制优先级等仿真假设与未实现点见说明。未实现参数只读；保存并应用配置会重建模型，重置临时命令及运行电量到模板初值。'));
     const explanation = element('details', 'huawei-explanation');
     explanation.append(element('summary', '', '查看仿真范围与控制规则说明'), element('p', '', '有功百分比与固定值、无功PF与Q/S分别采用最后一次成功写入的命令。百分比参照旧版华为协议以Pmax为基准；有功/无功梯度以Pn/Smax为基准。控制优先级、PF正负符号、非零反馈模式及状态枚举的版本迁移属于仿真假设。无功受Smax及馈入/吸收限值限制，采用有功优先。电压、频率变更更新电参，不模拟厂家保护、重启或电网潮流。身份、未建模告警、绝缘及时间等点保留模板值。'));
+    explanation.append(element('p', '', '当前版本按现有点表模拟4路PV、平衡三相。未实现参数只读；保存并应用配置会重建模型，重置临时命令及运行电量到模板初值。'));
     card.node.append(explanation);
     return card;
   }
@@ -160,7 +165,7 @@ export function createHuaweiPanel(root, options = {}) {
       if (!card.dirtyScenario && !card.pending) {
         for (const field of scenarioFields) card.inputs[field.key].value = String(device.model.scenario?.[field.key] ?? '');
         card.slider.value = card.inputs.dc_available_kw.value;
-        card.solarValue.textContent = `${card.inputs.dc_available_kw.value} kW`;
+        card.solarValue.textContent = `${Number(card.inputs.dc_available_kw.value).toFixed(2)} kW`;
       }
     }
   }

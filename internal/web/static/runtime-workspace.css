@@ -1,0 +1,103 @@
+/* 运行页以总线为工作对象，设备反馈、控制及点表共用同一容器。 */
+:root { --bg: #f3f5f8; --border: #e1e6ed; --muted: #738094; --accent: #2563eb; }
+body { color: #223047; }
+header { align-items: center; padding: 18px 28px; gap: 12px; }
+header h1 { font-size: 19px; letter-spacing: -.5px; }
+header h1::before { content: 'S'; display: inline-grid; place-items: center; width: 30px; height: 30px; margin-right: 10px; border-radius: 8px; color: #fff; background: var(--accent); font-size: 17px; }
+main { max-width: 1800px; margin: 0 auto; padding: 20px 28px 28px; gap: 18px; }
+.card { border-radius: 10px; }
+button { font: inherit; color: inherit; border-radius: 6px; transition: background .15s, border-color .15s; }
+button:hover:not(:disabled) { background: #f0f4fa; border-color: #b7c7dd; }
+button.primary:hover:not(:disabled) { background: #1d4ed8; border-color: #1d4ed8; }
+nav[aria-label="页面切换"] { border-bottom: 1px solid var(--border); gap: 24px; }
+nav[aria-label="页面切换"] button { border: 0; border-bottom: 3px solid transparent; border-radius: 0; padding: 10px 0 12px; background: transparent; color: var(--muted); font-weight: 600; }
+nav[aria-label="页面切换"] button[aria-pressed=true] { color: var(--accent); background: transparent; border-color: var(--accent); }
+.update-card { border-top: 1px solid var(--border); }
+.update-heading { padding-top: 12px; }
+.update-body { padding-top: 8px; padding-bottom: 12px; }
+.update-versions { margin-bottom: 5px; font-size: 12px; }
+.update-result { margin-top: 5px; }
+#buses.runtime-workbench { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 18px; align-items: start; }
+.bus-rail { min-width: 0; position: sticky; top: 18px; border: 1px solid var(--border); background: #fff; border-radius: 10px; padding: 14px 10px; }
+.bus-rail-title { padding: 0 10px 12px; color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .5px; }
+.bus-list { display: grid; gap: 6px; }
+.bus-choice { display: grid; width: 100%; gap: 7px; text-align: left; padding: 12px 10px; background: transparent; border: 1px solid transparent; overflow-wrap: anywhere; }
+.bus-choice strong { font-size: 13px; }
+.bus-choice span { color: var(--muted); font-size: 11px; }
+.bus-choice[aria-pressed=true] { color: #2157c1; background: #edf3ff; border-color: #dce7ff; }
+.bus-choice[aria-pressed=true] span { color: #5f7dae; }
+.bus-content { min-width: 0; }
+.bus-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 22px 16px; }
+.section-eyebrow { display: block; color: var(--muted); font-size: 11px; letter-spacing: .5px; margin-bottom: 6px; }
+.bus-heading h2 { margin: 0; font-size: 21px; letter-spacing: -.3px; overflow-wrap: anywhere; }
+.bus-summary { font-size: 12px; color: var(--muted); text-align: right; flex-shrink: 0; }
+.bus-connection { margin: 0 22px 18px; border: 1px solid var(--border); border-radius: 6px; color: var(--muted); background: #fafbfd; font-size: 11px; }
+.bus-connection summary { padding: 9px 12px; cursor: pointer; overflow-wrap: anywhere; }
+.bus-path { padding: 0 12px 10px; font-family: Consolas, monospace; overflow-wrap: anywhere; line-height: 1.6; }
+.runtime-device { border-top: 1px solid var(--border); }
+.static-device-title { margin: 0; padding: 18px 22px; font-size: 15px; }
+.bus-is-empty .bus-devices::after { content: '此总线尚未配置设备，请在 RS485 配置中添加。'; display: block; padding: 18px 22px; border-top: 1px solid var(--border); color: var(--muted); }
+.runtime-empty { padding: 40px 24px; color: var(--muted); line-height: 1.6; }
+.device-model > .huawei-card { border: 0; border-radius: 0; }
+.huawei-heading { padding: 18px 22px 14px; border: 0; }
+.device-identity h3 { font-size: 15px; margin: 0; }
+.huawei-status { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; }
+.huawei-status::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.huawei-metrics { padding: 0 22px; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.huawei-metric { padding: 12px 14px; gap: 8px; border: 1px solid #edf0f5; border-radius: 7px; background: #f8fafc; }
+.huawei-metric:first-child { background: #eef4ff; border-color: #e0eaff; }
+.huawei-metric:first-child strong { color: #215acb; }
+.huawei-metric strong { font-size: 20px; letter-spacing: -.5px; white-space: nowrap; }
+.huawei-metric span { font-size: 11px; }
+.huawei-metric:last-child { grid-column: span 2; }
+.huawei-metric:nth-last-child(-n+2) strong { font-size: 18px; }
+.huawei-body { grid-template-columns: minmax(260px, .9fr) minmax(510px, 1.65fr); gap: 18px; padding: 18px 22px; align-items: start; }
+.huawei-feedback { min-width: 0; }
+.huawei-trend { margin-top: 0; padding: 14px; border-color: var(--border); border-radius: 7px; }
+.huawei-trend-chart { height: 160px; margin-top: 16px; }
+.huawei-trend-legend span::before { content: ''; display: inline-block; width: 14px; border-top: 2px solid currentColor; margin-right: 5px; vertical-align: middle; }
+.huawei-trend-legend .huawei-trend-target::before { border-top-style: dashed; }
+.huawei-caption { font-size: 11px; }
+.huawei-feedback > .huawei-caption { padding: 8px 0; margin: 8px 0; line-height: 1.8; }
+.huawei-phases { border: 1px solid var(--border); }
+.huawei-phases th { background: #f8fafc; color: var(--muted); font-weight: 500; }
+.huawei-phases th, .huawei-phases td { padding: 9px 8px; font-size: 11px; }
+.huawei-controls { gap: 14px; }
+.huawei-fieldset { border-color: var(--border); border-radius: 7px; padding: 12px; }
+.huawei-fieldset legend { font-size: 13px; padding: 0 6px; }
+.huawei-controls button { font-size: 11px; padding: 7px 9px; }
+.huawei-presets { gap: 5px; margin-bottom: 12px; }
+.huawei-presets button { background: #f8fafc; padding: 6px 8px; }
+.huawei-command { margin: 11px 0; }
+.huawei-command label { font-size: 11px; }
+.huawei-command input, .huawei-controls .config-field input { padding: 7px 9px; font-size: 13px; border-radius: 5px; font-variant-numeric: tabular-nums; }
+.huawei-controls .config-field { font-size: 11px; }
+.huawei-solar { gap: 8px; padding: 12px; background: #fff8e8; font-size: 11px; }
+.huawei-solar strong { font-size: 20px; }
+.huawei-message { font-size: 11px; min-height: 0; line-height: 1.7; }
+.huawei-explanation { padding: 0 22px 16px; font-size: 11px; }
+.runtime-registers { border-top: 1px solid var(--border); background: #fff; }
+.runtime-registers > summary { padding: 14px 22px; background: #f9fbfd; font-size: 12px; color: #46566e; }
+.runtime-table { min-width: 1050px; }
+.runtime-table th { font-size: 11px; padding: 10px; }
+.runtime-table td { font-size: 12px; padding: 9px 10px; }
+.runtime-table input { width: 100px; }
+.register-message { padding: 0 22px; font-size: 12px; color: var(--muted); }
+.register-message:empty { display: none; }
+.register-message.error { color: #b42318; }
+.log-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 14px 18px; }
+.log-heading h2 { margin: 0 0 4px; font-size: 14px; }
+.log-heading .hint { color: var(--muted); font-size: 11px; }
+.log-heading .toolbar { padding: 0; }
+.log-heading button { padding: 5px 12px; font-size: 12px; }
+.logs { height: 220px; padding: 14px 18px; background: #111b2b; font-size: 11px; }
+@media (min-width: 1550px) { .huawei-metrics { grid-template-columns: repeat(7, minmax(0, 1fr)); } .huawei-metric:last-child { grid-column: auto; } }
+@media (max-width: 1250px) { .huawei-body { grid-template-columns: 1fr; } .huawei-feedback { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; } .huawei-trend { grid-row: span 2; } .huawei-feedback > .huawei-caption { order: 1; } .huawei-phases { align-self: start; } }
+@media (max-width: 900px) { #buses.runtime-workbench { grid-template-columns: 1fr; gap: 12px; } .bus-rail { position: static; padding: 10px; } .bus-rail-title { padding: 0 4px 8px; } .bus-list { display: flex; overflow-x: auto; } .bus-choice { min-width: 170px; width: auto; } .huawei-metric strong { font-size: 17px; } }
+@media (max-width: 600px) {
+  header { padding: 14px 16px; } header .hint { font-size: 11px; } main { padding: 12px; gap: 14px; }
+  .bus-heading { padding: 16px; align-items: start; } .bus-heading h2 { font-size: 18px; } .bus-summary { max-width: 130px; font-size: 11px; flex-shrink: 1; }
+  .bus-connection { margin: 0 16px 14px; } .huawei-heading { padding: 16px; } .huawei-metrics { padding: 0 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .huawei-body { padding: 16px; gap: 16px; } .huawei-feedback { display: block; } .huawei-controls { grid-template-columns: 1fr; }
+  .huawei-explanation { padding: 0 16px 16px; } .runtime-registers > summary { padding: 14px 16px; } .log-heading { padding: 14px; }
+}
