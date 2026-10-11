@@ -51,6 +51,17 @@
     border-bottom: 1px dashed var(--border);
   }
   table { width: 100%; border-collapse: collapse; }
+  .runtime-table-scroll { overflow-x: auto; }
+  /* 各总线共用列宽，避免数值刷新触发自动布局；窄屏在表格内滚动。 */
+  .runtime-table { table-layout: fixed; min-width: 1100px; }
+  .runtime-table .col-id { width: 60px; }
+  .runtime-table .col-function { width: 80px; }
+  .runtime-table .col-address { width: 90px; }
+  .runtime-table .col-type { width: 100px; }
+  .runtime-table .col-value { width: 240px; }
+  .runtime-table .col-raw { width: 160px; }
+  .runtime-table .col-manual { width: 200px; }
+  .runtime-table td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   th, td {
     text-align: left;
     padding: 6px 10px;
@@ -123,7 +134,8 @@
   nav { display: flex; gap: 8px; }
   nav button { padding: 8px 16px; }
   nav button[aria-pressed=true] { background: var(--accent); color: white; border-color: var(--accent); }
-  #runtime-panel { display: grid; gap: 16px; }
+  #runtime-panel { display: grid; gap: 16px; min-width: 0; }
+  #buses { min-width: 0; }
   #config-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
   .config-toolbar { flex-wrap: wrap; position: sticky; top: 0; background: white; z-index: 1; border-bottom: 1px solid var(--border); }
   .config-status { padding: 10px 14px; color: var(--muted); margin: 0; }
@@ -238,8 +250,14 @@ function render(state) {
     card.appendChild(meta);
 
     for (const slave of bus.slaves || []) {
+      const tableScroll = document.createElement('div');
+      tableScroll.className = 'runtime-table-scroll';
       const t = document.createElement('table');
-      t.innerHTML = `<thead><tr>
+      t.className = 'runtime-table';
+      t.innerHTML = `<colgroup>
+        <col class="col-id"><col class="col-function"><col class="col-address"><col class="col-type"><col>
+        <col class="col-value"><col class="col-raw"><col class="col-manual">
+      </colgroup><thead><tr>
         <th>站号</th><th>功能码</th><th>地址</th><th>类型</th><th>点名</th>
         <th>当前值</th><th>原始字节</th><th>手动设置</th>
       </tr></thead>`;
@@ -261,16 +279,19 @@ function render(state) {
         const tdTag = document.createElement('td');
         tdTag.className = 'tag';
         tdTag.textContent = reg.tag || '';
+        tdTag.title = tdTag.textContent;
         tr.appendChild(tdTag);
 
         const tdVal = document.createElement('td');
         tdVal.className = 'num';
         tdVal.textContent = reg.unit ? `${reg.value} ${reg.unit}` : String(reg.value);
+        tdVal.title = tdVal.textContent;
         tr.appendChild(tdVal);
 
         const tdRaw = document.createElement('td');
         tdRaw.className = 'num';
         tdRaw.textContent = reg.raw;
+        tdRaw.title = tdRaw.textContent;
         tr.appendChild(tdRaw);
 
         const tdSet = document.createElement('td');
@@ -293,7 +314,8 @@ function render(state) {
         tb.appendChild(tr);
       });
       t.appendChild(tb);
-      card.appendChild(t);
+      tableScroll.appendChild(t);
+      card.appendChild(tableScroll);
     }
     root.appendChild(card);
   }
