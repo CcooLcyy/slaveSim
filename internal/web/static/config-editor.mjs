@@ -289,18 +289,8 @@ document.getElementById('add-bus').onclick = () => {
 document.getElementById('reload-config').onclick = loadConfig;
 document.getElementById('retry-device-templates').onclick = readDeviceTemplates;
 document.getElementById('show-config').onclick = () => {
-  document.getElementById('runtime-panel').hidden = true;
-  document.getElementById('config-panel').hidden = false;
-  document.getElementById('show-config').setAttribute('aria-pressed', 'true');
-  document.getElementById('show-runtime').setAttribute('aria-pressed', 'false');
   if (!draft) loadConfig();
   if (!templatesLoaded && !templatesLoading) readDeviceTemplates();
-};
-document.getElementById('show-runtime').onclick = () => {
-  document.getElementById('runtime-panel').hidden = false;
-  document.getElementById('config-panel').hidden = true;
-  document.getElementById('show-config').setAttribute('aria-pressed', 'false');
-  document.getElementById('show-runtime').setAttribute('aria-pressed', 'true');
 };
 window.addEventListener('beforeunload', event => {
   if (!dirty) return;

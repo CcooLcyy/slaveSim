@@ -224,7 +224,12 @@
 </header>
 
 <main>
-  <section class="card update-card" id="update-panel" aria-labelledby="update-title">
+  <nav aria-label="页面切换">
+    <button id="show-runtime" type="button" aria-pressed="true">运行工作区</button>
+    <button id="show-config" type="button" aria-pressed="false">RS485 配置</button>
+    <button id="show-update" type="button" aria-pressed="false">程序更新</button>
+  </nav>
+  <section class="card update-card" id="update-panel" aria-labelledby="update-title" hidden>
     <div class="update-heading">
       <h2 id="update-title">程序更新</h2>
       <span class="update-badge" id="update-badge">手动更新</span>
@@ -238,6 +243,7 @@
         </dl>
         <div class="update-source">更新来源 · <a id="update-source" target="_blank" rel="noopener noreferrer">未配置</a></div>
         <p class="update-result" id="update-message" role="status" aria-live="polite">正在读取更新状态…</p>
+        <p class="update-result">更新完成并恢复连接后，网页会自动刷新。</p>
       </div>
       <div class="update-actions">
         <button id="update-retry" hidden>重试连接</button>
@@ -246,10 +252,6 @@
       </div>
     </div>
   </section>
-  <nav aria-label="页面切换">
-    <button id="show-runtime" type="button" aria-pressed="true">运行工作区</button>
-    <button id="show-config" type="button" aria-pressed="false">RS485 配置</button>
-  </nav>
   <section id="config-panel" class="card" hidden>
     <h2>多路 RS485 配置</h2>
     <form id="config-form" novalidate>
@@ -364,6 +366,7 @@ connectEvents();
 window.addEventListener('config-applied', () => { stateEpoch++; refresh(); });
 window.addEventListener('model-applied', refresh);
 </script>
+<script type="module" src="/page-tabs.mjs"></script>
 <script type="module" src="/update-panel.mjs"></script>
 <script type="module" src="/config-editor.mjs"></script>
 <script type="module" src="/runtime-workspace.mjs"></script>
