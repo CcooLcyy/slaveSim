@@ -1,5 +1,6 @@
-import { newBus, newSlave, newRegister, normalizeConfig, validateDraft, sourceFields } from './config-model.mjs';
+import { newBus, newRegister, normalizeConfig, validateDraft, sourceFields } from './config-model.mjs';
 import { scenarioFields, scenarioRequest } from './huawei-view.mjs';
+import { customDeviceType, createDeviceSlave, loadDeviceTemplates } from './device-templates.mjs';
 
 const root = document.getElementById('config-buses');
 const status = document.getElementById('config-status');
@@ -8,6 +9,76 @@ let draft = null;
 let dirty = false;
 let busy = false;
 const expandedRegisters = new WeakMap();
+const selectedDeviceTypes = new WeakMap();
+let deviceTemplates = [];
+let templatesLoading = false;
+let templatesLoaded = false;
+let templatesError = '';
+let deviceControls = [];
+
+function updateDeviceButton(control) {
+  const type = control.select.value;
+  control.button.disabled = type !== customDeviceType && !deviceTemplates.some(template => template.id === type);
+}
+
+function fillDeviceChoices(control) {
+  const selected = selectedDeviceTypes.get(control.bus) || customDeviceType;
+  control.select.replaceChildren();
+  const custom = element('option', '', '自定义 Modbus 设备'); custom.value = customDeviceType; control.select.append(custom);
+  for (const template of deviceTemplates) {
+    const option = element('option', '', template.name); option.value = template.id; control.select.append(option);
+  }
+  if (!deviceTemplates.length) {
+    const hint = element('option', '', templatesLoading ? '正在加载预置设备…' : (templatesError ? '预置设备加载失败' : '暂无预置设备'));
+    hint.disabled = true; control.select.append(hint);
+  }
+  control.select.value = selected === customDeviceType || deviceTemplates.some(template => template.id === selected) ? selected : customDeviceType;
+  selectedDeviceTypes.set(control.bus, control.select.value);
+  updateDeviceButton(control);
+}
+
+function showTemplateStatus() {
+  const node = document.getElementById('device-template-status');
+  node.className = templatesError ? 'config-status error' : 'config-status';
+  node.textContent = templatesLoading ? '正在读取预置设备；自定义 Modbus 设备仍可添加。' : templatesError
+    ? `预置设备加载失败：${templatesError}。仍可读取、编辑和保存原配置，也可添加自定义 Modbus 设备。`
+    : `已读取 ${deviceTemplates.length} 种预置设备；选择设备类型并添加到草稿，保存并应用后才生效。`;
+  const retry = document.getElementById('retry-device-templates'); retry.hidden = !templatesError; retry.disabled = templatesLoading;
+  // 异步目录读取只更新新增设备选项，不重绘配置输入或替换草稿。
+  for (const control of deviceControls) fillDeviceChoices(control);
+}
+
+async function readDeviceTemplates() {
+  if (templatesLoading) return;
+  templatesLoading = true; templatesError = ''; showTemplateStatus();
+  try { deviceTemplates = await loadDeviceTemplates(window.fetch ? window.fetch.bind(window) : fetch); templatesLoaded = true; }
+  catch (error) { deviceTemplates = []; templatesError = error.message; }
+  finally { templatesLoading = false; showTemplateStatus(); }
+}
+
+function deviceAdder(bus) {
+  const area = element('div', 'device-add');
+  const label = element('label', 'config-field'); label.append(element('span', '', '设备类型'));
+  const select = element('select'); select.name = 'device-type'; select.setAttribute('aria-label', '设备类型'); label.append(select);
+  const button = element('button', 'primary', '添加设备'); button.type = 'button';
+  const control = { bus, select, button }; deviceControls.push(control); fillDeviceChoices(control);
+  select.onchange = () => { selectedDeviceTypes.set(bus, select.value); updateDeviceButton(control); };
+  button.onclick = () => {
+    if (busy) return;
+    if (!draft?.buses.includes(bus)) { message('目标总线已移除，请在当前总线中添加设备', true); return; }
+    try {
+      const type = select.value;
+      const template = type === customDeviceType ? null : deviceTemplates.find(template => template.id === type);
+      if (type !== customDeviceType && !template) throw new Error('所选预置设备不可用，请重试加载或选择自定义 Modbus 设备');
+      const slave = createDeviceSlave(bus.slaves, template);
+      bus.slaves.push(slave); changed(); renderEditor();
+      message(`已将${template?.name || '自定义 Modbus 设备'}加入总线 ${bus.name} 的草稿（站号 ${slave.device_id}）；保存并应用后生效`);
+      console.info('设备已加入配置草稿', { bus: bus.name, device_id: slave.device_id, type });
+    } catch (error) { message(`添加设备失败：${error.message}`, true); }
+  };
+  area.append(label, button);
+  return area;
+}
 
 function message(text, error = false) {
   status.textContent = text;
@@ -120,6 +191,7 @@ function registerEditor(parent, slave, reg, index) {
 
 function renderEditor() {
   root.replaceChildren();
+  deviceControls = [];
   if (!draft) return;
   document.getElementById('config-count').textContent = `${draft.buses.length} 路总线 · ${draft.buses.reduce((n, bus) => n + bus.slaves.length, 0)} 个从站`;
   for (const [busIndex, bus] of draft.buses.entries()) {
@@ -130,7 +202,7 @@ function renderEditor() {
     const fields = element('div', 'config-grid bus-fields');
     field(fields, bus, 'name', '总线名称', { required: true, afterChange: () => { title.textContent = bus.name || '未命名总线'; } });
     field(fields, bus, 'link', '串口软链接路径', { required: true, placeholder: '/srv/serial-sim/tty0' });
-    card.append(heading, fields);
+    card.append(heading, fields, deviceAdder(bus));
     for (const [slaveIndex, slave] of bus.slaves.entries()) {
       const station = element('section', 'slave-editor');
       const stationHeading = element('div', 'editor-heading');
@@ -150,7 +222,6 @@ function renderEditor() {
       }));
       card.append(station);
     }
-    card.append(action('新增从站', () => bus.slaves.push(newSlave(bus.slaves))));
     root.append(card);
   }
   if (!draft.buses.length) root.append(element('p', 'config-empty', '还没有 RS485 总线，请点击“新增 RS485 总线”。'));
@@ -208,12 +279,14 @@ document.getElementById('add-bus').onclick = () => {
   draft.buses.push(newBus(draft.buses)); changed(); renderEditor();
 };
 document.getElementById('reload-config').onclick = loadConfig;
+document.getElementById('retry-device-templates').onclick = readDeviceTemplates;
 document.getElementById('show-config').onclick = () => {
   document.getElementById('runtime-panel').hidden = true;
   document.getElementById('config-panel').hidden = false;
   document.getElementById('show-config').setAttribute('aria-pressed', 'true');
   document.getElementById('show-runtime').setAttribute('aria-pressed', 'false');
   if (!draft) loadConfig();
+  if (!templatesLoaded && !templatesLoading) readDeviceTemplates();
 };
 document.getElementById('show-runtime').onclick = () => {
   document.getElementById('runtime-panel').hidden = false;

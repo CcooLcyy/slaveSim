@@ -149,6 +149,9 @@
   .bus-fields { grid-template-columns: minmax(175px, 1fr) minmax(260px, 2fr); }
   .config-field { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: #444d56; }
   .config-field input, .config-field select { width: 100%; min-width: 0; padding: 7px 9px; border: 1px solid var(--border); border-radius: 4px; background: white; font: inherit; font-size: 14px; color: #1f2328; }
+  .device-add { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin-top: 14px; }
+  .device-add .config-field { min-width: 220px; max-width: 100%; flex: 1; }
+  .device-add button { padding: 8px 14px; }
   input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .slave-editor { background: white; border: 1px solid var(--border); border-radius: 4px; padding: 12px; margin: 14px 0; }
   .register-editor { border-top: 1px solid #e8ecf0; padding: 12px 0; }
@@ -246,11 +249,13 @@
         <div class="toolbar config-toolbar">
           <button id="add-bus" type="button">新增 RS485 总线</button>
           <button id="reload-config" type="button">重新读取</button>
+          <button id="retry-device-templates" type="button" hidden>重试预置加载</button>
           <button id="save-config" class="primary" type="submit">保存并应用</button>
           <span class="tag" id="config-count"></span>
         </div>
         <p id="config-status" class="config-status" role="status" aria-live="polite">点击配置页后读取当前配置</p>
-        <p class="config-hint">每路总线对应一个独立虚拟串口，可挂多个从站；串口路径须位于已共享的串口目录。数值来源填写寄存器原始值，倍率与偏移由下位机点表换算。保存后立即应用，更新总线的临时手动值会重置。</p>
+        <p id="device-template-status" class="config-status" role="status" aria-live="polite">点击配置页后读取预置设备</p>
+        <p class="config-hint">每路总线对应一个独立虚拟串口，可挂多个从站。在总线的“设备类型”中选择自定义 Modbus 设备或完整预置设备，点击“添加设备”加入草稿；站号自动避开同总线已有设备，仍可手动修改。华为行为仿真联动功率与电参，其他静态点表预置按数值来源取值。串口路径须位于已共享的串口目录；保存并应用后才生效，临时手动值与模型运行状态会重置。</p>
         <div id="config-buses"></div>
       </fieldset>
     </form>

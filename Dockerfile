@@ -25,6 +25,7 @@ COPY version.go ./
 COPY VERSION ./
 COPY internal ./internal
 COPY cmd ./cmd
+COPY configs/inverters ./configs/inverters
 
 RUN version=${VERSION:-$(cat VERSION)-dev} \
  && CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} \

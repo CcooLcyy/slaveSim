@@ -75,6 +75,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/manual", s.handleManual)
 	mux.HandleFunc("/api/scenario", s.handleScenario)
 	mux.HandleFunc("/api/config", s.handleConfig)
+	mux.HandleFunc("/api/device-templates", s.handleDeviceTemplates)
 
 	sub, err := fs.Sub(staticFiles, "static")
 	if err != nil {
