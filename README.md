@@ -174,6 +174,8 @@ docker run ... -v /dev/pts:/dev/pts -v /home/daniel/serial-sim:/home/daniel/seri
 
 配置为三层结构：**总线（一条虚拟串口）→ 从站（站号）→ 寄存器**。
 
+已整理奥太、古瑞瓦特、固德威、华为的厂商点表，按机型选择 [`configs/inverters/`](configs/inverters/README.md) 下的完整 JSON，或用 [`config.inverters.example.json`](config.inverters.example.json) 同时模拟多家设备。预设的倍率、源协议页码、读写限制及未覆盖项见该目录说明。使用前调整站号和共享串口路径；已有部署的运行配置仍由用户选择并应用。
+
 Web 页面可新增、编辑和删除多路 RS485 总线、从站及寄存器，支持固定、手动、正弦、斜坡和随机来源。点击“保存并应用”会校验完整配置、写入配置文件并更新正在运行的总线，重启后保留；单独在运行状态中手动设值是临时覆盖。每路总线的软链接应位于与下位机共享的串口目录内。接口及验收规则见 [Web 多路 RS485 配置](doc/Web多路485配置.md)。
 
 > **重要：`source.value` 是寄存器里的原始值，不是工程量。**

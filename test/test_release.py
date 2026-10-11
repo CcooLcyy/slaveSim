@@ -20,6 +20,16 @@ SPEC.loader.exec_module(release)
 
 
 class ReleaseTests(unittest.TestCase):
+    def test_inverter_presets_are_included_in_binary_packages(self):
+        # 发布包须携带所有厂商点表与使用说明，不能只提供源码仓库中的文件。
+        presets = release.SOURCE_DIR / "configs" / "inverters"
+        expected = {path.relative_to(release.SOURCE_DIR).as_posix()
+                    for path in presets.iterdir() if path.suffix in (".json", ".md")}
+        self.assertTrue(expected, "未找到逆变器预设点表")
+        expected.add("config.inverters.example.json")
+        self.assertTrue(expected.issubset(release.PACKAGE_FILES),
+                        f"发布包缺少逆变器文件: {sorted(expected - set(release.PACKAGE_FILES))}")
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)

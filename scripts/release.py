@@ -28,6 +28,32 @@ PACKAGE_FILES = ("config.example.json", "README.md", "VERSION", "scripts/update.
                  "doc/单容器网页更新.md",
                  "deploy/compose.release.yml", "deploy/slavesim-update.service",
                  "deploy/slavesim-update.timer")
+# 预设点表随发布包提供，部署时由用户选择，不替换已有运行配置。
+INVERTER_FILES = (
+    "config.inverters.example.json",
+    "configs/inverters/README.md",
+    "configs/inverters/aotai-growatt.md",
+    "configs/inverters/goodwe.md",
+    "configs/inverters/huawei.md",
+    "configs/inverters/aotai-hf-tl-telemetry.json",
+    "configs/inverters/aotai-tld-telemetry.json",
+    "configs/inverters/aotai-tlc10-30-telemetry.json",
+    "configs/inverters/aotai-asp250-telemetry.json",
+    "configs/inverters/aotai-asp500-telemetry.json",
+    "configs/inverters/aotai-asp630-telemetry.json",
+    "configs/inverters/aotai-controls-common.json",
+    "configs/inverters/aotai-controls-large.json",
+    "configs/inverters/growatt-tl3x-mid-mac.json",
+    "configs/inverters/growatt-tl3x-max.json",
+    "configs/inverters/growatt-tlx-min.json",
+    "configs/inverters/goodwe-mtg2.json",
+    "configs/inverters/goodwe-smt50-60k.json",
+    "configs/inverters/goodwe-sdtg2.json",
+    "configs/inverters/goodwe-single-mppt.json",
+    "configs/inverters/goodwe-single-dual-mppt.json",
+    "configs/inverters/huawei-v3.json",
+)
+PACKAGE_FILES += INVERTER_FILES
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
 
 

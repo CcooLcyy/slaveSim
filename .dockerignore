@@ -6,6 +6,10 @@
 !internal
 !cmd
 !config.example.json
+!config.inverters.example.json
+!configs
+!configs/inverters
+!configs/inverters/**
 !scripts
 !scripts/runtime.py
 !scripts/update.py

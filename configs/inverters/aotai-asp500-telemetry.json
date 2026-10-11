@@ -1,0 +1,689 @@
+{
+  "buses": [
+    {
+      "name": "aotai-asp500-telemetry",
+      "link": "/home/daniel/serial-sim/tty0",
+      "slaves": [
+        {
+          "device_id": 1,
+          "response_delay_ms": 0,
+          "unmapped_policy": "exception",
+          "registers": [
+            {
+              "function": "0x03",
+              "address": 0,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 1
+              },
+              "tag": "运行状态位图 bit0运行 bit1待机 bit2故障 bit3急停 bit4按键关机",
+              "unit": ""
+            },
+            {
+              "function": "0x03",
+              "address": 1,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "当天在线小时 [h/LSB]",
+              "unit": "h"
+            },
+            {
+              "function": "0x03",
+              "address": 2,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "当天在线分钟 [min/LSB]",
+              "unit": "min"
+            },
+            {
+              "function": "0x03",
+              "address": 3,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "当天在线秒 [s/LSB]",
+              "unit": "s"
+            },
+            {
+              "function": "0x03",
+              "address": 4,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "故障信息4/F3 原始16位位图",
+              "unit": ""
+            },
+            {
+              "function": "0x03",
+              "address": 5,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "故障信息1/F0 原始16位位图",
+              "unit": ""
+            },
+            {
+              "function": "0x03",
+              "address": 6,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "故障信息2/F1 原始16位位图",
+              "unit": ""
+            },
+            {
+              "function": "0x03",
+              "address": 7,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "故障信息3/F2 原始16位位图",
+              "unit": ""
+            },
+            {
+              "function": "0x03",
+              "address": 8,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 2000
+              },
+              "tag": "天最大功率 [0.1kW/LSB]",
+              "unit": "0.1kW"
+            },
+            {
+              "function": "0x03",
+              "address": 9,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "最大功率点直流母线电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x03",
+              "address": 10,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "A相电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x03",
+              "address": 11,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "B相电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x03",
+              "address": 12,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "C相电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x03",
+              "address": 13,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "A相电流 [0.05A/LSB]",
+              "unit": "0.05A"
+            },
+            {
+              "function": "0x03",
+              "address": 14,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "B相电流 [0.05A/LSB]",
+              "unit": "0.05A"
+            },
+            {
+              "function": "0x03",
+              "address": 15,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "C相电流 [0.05A/LSB]",
+              "unit": "0.05A"
+            },
+            {
+              "function": "0x03",
+              "address": 16,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 4955
+              },
+              "tag": "交流频率 [0.01Hz/LSB]",
+              "unit": "0.01Hz"
+            },
+            {
+              "function": "0x03",
+              "address": 17,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 10000
+              },
+              "tag": "交流有功功率 [20W/LSB]",
+              "unit": "20W"
+            },
+            {
+              "function": "0x03",
+              "address": 18,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "交流无功功率 [20var/LSB] 原始16位；负数编码原文未明确",
+              "unit": "20var"
+            },
+            {
+              "function": "0x03",
+              "address": 19,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "直流功率 [20W/LSB]",
+              "unit": "20W"
+            },
+            {
+              "function": "0x03",
+              "address": 20,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "直流电流 [0.05A/LSB]",
+              "unit": "0.05A"
+            },
+            {
+              "function": "0x03",
+              "address": 21,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "直流电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x03",
+              "address": 22,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 3000
+              },
+              "tag": "当天总发电量 [kWh/LSB]",
+              "unit": "kWh"
+            },
+            {
+              "function": "0x03",
+              "address": 24,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 120000
+              },
+              "tag": "累计总发电量 [kWh/LSB]",
+              "unit": "kWh"
+            },
+            {
+              "function": "0x03",
+              "address": 26,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 355
+              },
+              "tag": "逆变器温度 [0.1℃/LSB] 原始16位；负温编码原文未明确",
+              "unit": "0.1℃"
+            },
+            {
+              "function": "0x03",
+              "address": 27,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "功率因数兼容字段 90..100感性PF=raw/100；100..110容性PF=(200-raw)/100",
+              "unit": ""
+            },
+            {
+              "function": "0x03",
+              "address": 28,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "CO2减排量旧16位字段 [t/LSB] 兼容字段；建议使用36/37",
+              "unit": "t"
+            },
+            {
+              "function": "0x03",
+              "address": 29,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "有功设定回传 [20W/LSB]",
+              "unit": "20W"
+            },
+            {
+              "function": "0x03",
+              "address": 30,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "无功设定回传 [20var/LSB] 负数编码原文未明确",
+              "unit": "20var"
+            },
+            {
+              "function": "0x03",
+              "address": 31,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 256
+              },
+              "tag": "协议版本高8位主版本低8位次版本 初始夹具值1.0；不代表型号实际固件",
+              "unit": ""
+            },
+            {
+              "function": "0x03",
+              "address": 36,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "CO2减排量 [t/LSB]",
+              "unit": "t"
+            },
+            {
+              "function": "0x03",
+              "address": 38,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "汇流箱电流有效位图 1.5扩展；bit0..15=第1..16路有效",
+              "unit": ""
+            },
+            {
+              "function": "0x03",
+              "address": 39,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "汇流箱第1路电流 [0.01A/LSB] 仅自带汇流箱机型的1.5扩展",
+              "unit": "0.01A"
+            },
+            {
+              "function": "0x03",
+              "address": 40,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "汇流箱第2路电流 [0.01A/LSB] 仅自带汇流箱机型的1.5扩展",
+              "unit": "0.01A"
+            },
+            {
+              "function": "0x03",
+              "address": 41,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "汇流箱第3路电流 [0.01A/LSB] 仅自带汇流箱机型的1.5扩展",
+              "unit": "0.01A"
+            },
+            {
+              "function": "0x03",
+              "address": 42,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "汇流箱第4路电流 [0.01A/LSB] 仅自带汇流箱机型的1.5扩展",
+              "unit": "0.01A"
+            },
+            {
+              "function": "0x03",
+              "address": 43,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "汇流箱第5路电流 [0.01A/LSB] 仅自带汇流箱机型的1.5扩展",
+              "unit": "0.01A"
+            },
+            {
+              "function": "0x03",
+              "address": 44,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "汇流箱第6路电流 [0.01A/LSB] 仅自带汇流箱机型的1.5扩展",
+              "unit": "0.01A"
+            },
+            {
+              "function": "0x03",
+              "address": 45,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "汇流箱第7路电流 [0.01A/LSB] 仅自带汇流箱机型的1.5扩展",
+              "unit": "0.01A"
+            },
+            {
+              "function": "0x03",
+              "address": 46,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "汇流箱第8路电流 [0.01A/LSB] 仅自带汇流箱机型的1.5扩展",
+              "unit": "0.01A"
+            },
+            {
+              "function": "0x03",
+              "address": 47,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "汇流箱第9路电流 [0.01A/LSB] 仅自带汇流箱机型的1.5扩展",
+              "unit": "0.01A"
+            },
+            {
+              "function": "0x03",
+              "address": 48,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "汇流箱第10路电流 [0.01A/LSB] 仅自带汇流箱机型的1.5扩展",
+              "unit": "0.01A"
+            },
+            {
+              "function": "0x03",
+              "address": 49,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "汇流箱第11路电流 [0.01A/LSB] 仅自带汇流箱机型的1.5扩展",
+              "unit": "0.01A"
+            },
+            {
+              "function": "0x03",
+              "address": 50,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "汇流箱第12路电流 [0.01A/LSB] 仅自带汇流箱机型的1.5扩展",
+              "unit": "0.01A"
+            },
+            {
+              "function": "0x03",
+              "address": 51,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "汇流箱第13路电流 [0.01A/LSB] 仅自带汇流箱机型的1.5扩展",
+              "unit": "0.01A"
+            },
+            {
+              "function": "0x03",
+              "address": 52,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "汇流箱第14路电流 [0.01A/LSB] 仅自带汇流箱机型的1.5扩展",
+              "unit": "0.01A"
+            },
+            {
+              "function": "0x03",
+              "address": 53,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "汇流箱第15路电流 [0.01A/LSB] 仅自带汇流箱机型的1.5扩展",
+              "unit": "0.01A"
+            },
+            {
+              "function": "0x03",
+              "address": 54,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "汇流箱第16路电流 [0.01A/LSB] 仅自带汇流箱机型的1.5扩展",
+              "unit": "0.01A"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

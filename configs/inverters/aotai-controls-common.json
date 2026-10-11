@@ -1,0 +1,87 @@
+{
+  "buses": [
+    {
+      "name": "aotai-controls-common",
+      "link": "/home/daniel/serial-sim/tty0",
+      "slaves": [
+        {
+          "device_id": 1,
+          "response_delay_ms": 0,
+          "unmapped_policy": "exception",
+          "registers": [
+            {
+              "function": "0x06",
+              "address": 39,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "受控状态选择 协议1.3；0不受控 1受控",
+              "unit": ""
+            },
+            {
+              "function": "0x06",
+              "address": 41,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 1000
+              },
+              "tag": "有功功率限定 [0.1%/LSB] 协议1.1及以后；raw=1..1000",
+              "unit": "0.1%"
+            },
+            {
+              "function": "0x06",
+              "address": 43,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 1
+              },
+              "tag": "并网点有功反馈 [0.1%/LSB] 协议1.4；raw=1..1000",
+              "unit": "0.1%"
+            },
+            {
+              "function": "0x06",
+              "address": 44,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 1
+              },
+              "tag": "并网点无功反馈 [0.1%/LSB] 协议1.4；原文范围±1..±1000，负数编码未明确",
+              "unit": "0.1%"
+            },
+            {
+              "function": "0x06",
+              "address": 49,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 1
+              },
+              "tag": "启动停止 0停止 1启动",
+              "unit": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

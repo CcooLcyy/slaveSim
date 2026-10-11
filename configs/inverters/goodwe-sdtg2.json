@@ -1,0 +1,650 @@
+{
+  "buses": [
+    {
+      "name": "固德威 SDT G2",
+      "link": "/home/daniel/serial-sim/tty0",
+      "slaves": [
+        {
+          "device_id": 1,
+          "response_delay_ms": 0,
+          "unmapped_policy": "exception",
+          "registers": [
+            {
+              "function": "0x03",
+              "address": 0,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "tag": "起机电压（raw/10）",
+              "source": {
+                "kind": "manual",
+                "value": 600
+              },
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x03",
+              "address": 1,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "tag": "重连时间",
+              "source": {
+                "kind": "manual",
+                "value": 60
+              },
+              "unit": "s"
+            },
+            {
+              "function": "0x03",
+              "address": 2,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "tag": "市电电压下限（raw/10）",
+              "source": {
+                "kind": "manual",
+                "value": 1800
+              },
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x03",
+              "address": 3,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "tag": "市电电压上限（raw/10）",
+              "source": {
+                "kind": "manual",
+                "value": 2600
+              },
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x03",
+              "address": 4,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "tag": "市电频率下限（raw/100）",
+              "source": {
+                "kind": "manual",
+                "value": 4500
+              },
+              "unit": "0.01Hz"
+            },
+            {
+              "function": "0x03",
+              "address": 5,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "tag": "市电频率上限（raw/100）",
+              "source": {
+                "kind": "manual",
+                "value": 5500
+              },
+              "unit": "0.01Hz"
+            },
+            {
+              "function": "0x03",
+              "address": 256,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "tag": "有功调节量",
+              "source": {
+                "kind": "manual",
+                "value": 100
+              },
+              "unit": "%"
+            },
+            {
+              "function": "0x03",
+              "address": 257,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "tag": "PF无功调节量",
+              "source": {
+                "kind": "manual",
+                "value": 100
+              }
+            },
+            {
+              "function": "0x03",
+              "address": 258,
+              "type": "INT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "tag": "无功调节量",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "unit": "var"
+            },
+            {
+              "function": "0x03",
+              "address": 262,
+              "type": "INT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "tag": "加减载幅度及指令ID",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              }
+            },
+            {
+              "function": "0x03",
+              "address": 265,
+              "type": "INT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "tag": "无功百分比调节量",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "unit": "%"
+            },
+            {
+              "function": "0x03",
+              "address": 288,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "tag": "开机命令",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              }
+            },
+            {
+              "function": "0x03",
+              "address": 289,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "tag": "关机命令",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              }
+            },
+            {
+              "function": "0x03",
+              "address": 290,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "tag": "重启命令",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              }
+            },
+            {
+              "function": "0x03",
+              "address": 291,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "tag": "并网功率限制开关",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              }
+            },
+            {
+              "function": "0x03",
+              "address": 292,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "tag": "逆流上行功率百分比",
+              "source": {
+                "kind": "manual",
+                "value": 100
+              },
+              "unit": "%"
+            },
+            {
+              "function": "0x03",
+              "address": 312,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "tag": "阴影扫描开关",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              }
+            },
+            {
+              "function": "0x03",
+              "address": 544,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "tag": "错误代码位图",
+              "source": {
+                "kind": "const",
+                "value": 0
+              }
+            },
+            {
+              "function": "0x03",
+              "address": 546,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "tag": "累计发电量（raw/10）",
+              "source": {
+                "kind": "const",
+                "value": 100000
+              },
+              "unit": "0.1kWh"
+            },
+            {
+              "function": "0x03",
+              "address": 548,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "tag": "累计运行小时",
+              "source": {
+                "kind": "const",
+                "value": 2000
+              },
+              "unit": "h"
+            },
+            {
+              "function": "0x03",
+              "address": 550,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "tag": "PV1电压（raw/10）",
+              "source": {
+                "kind": "const",
+                "value": 6000
+              },
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x03",
+              "address": 551,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "tag": "PV2电压（raw/10）",
+              "source": {
+                "kind": "const",
+                "value": 6000
+              },
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x03",
+              "address": 552,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "tag": "PV1电流（raw/10）",
+              "source": {
+                "kind": "const",
+                "value": 100
+              },
+              "unit": "0.1A"
+            },
+            {
+              "function": "0x03",
+              "address": 553,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "tag": "PV2电流（raw/10）",
+              "source": {
+                "kind": "const",
+                "value": 100
+              },
+              "unit": "0.1A"
+            },
+            {
+              "function": "0x03",
+              "address": 554,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "tag": "L1相电压（raw/10）",
+              "source": {
+                "kind": "const",
+                "value": 2300
+              },
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x03",
+              "address": 555,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "tag": "L2相电压（raw/10）",
+              "source": {
+                "kind": "const",
+                "value": 2300
+              },
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x03",
+              "address": 556,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "tag": "L3相电压（raw/10）",
+              "source": {
+                "kind": "const",
+                "value": 2300
+              },
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x03",
+              "address": 557,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "tag": "L1相电流（raw/10）",
+              "source": {
+                "kind": "const",
+                "value": 160
+              },
+              "unit": "0.1A"
+            },
+            {
+              "function": "0x03",
+              "address": 558,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "tag": "L2相电流（raw/10）",
+              "source": {
+                "kind": "const",
+                "value": 160
+              },
+              "unit": "0.1A"
+            },
+            {
+              "function": "0x03",
+              "address": 559,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "tag": "L3相电流（raw/10）",
+              "source": {
+                "kind": "const",
+                "value": 160
+              },
+              "unit": "0.1A"
+            },
+            {
+              "function": "0x03",
+              "address": 560,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "tag": "L1频率（raw/100）",
+              "source": {
+                "kind": "const",
+                "value": 5000
+              },
+              "unit": "0.01Hz"
+            },
+            {
+              "function": "0x03",
+              "address": 561,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "tag": "L2频率（raw/100）",
+              "source": {
+                "kind": "const",
+                "value": 5000
+              },
+              "unit": "0.01Hz"
+            },
+            {
+              "function": "0x03",
+              "address": 562,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "tag": "L3频率（raw/100）",
+              "source": {
+                "kind": "const",
+                "value": 5000
+              },
+              "unit": "0.01Hz"
+            },
+            {
+              "function": "0x03",
+              "address": 563,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "tag": "当前输出功率",
+              "source": {
+                "kind": "const",
+                "value": 10000
+              },
+              "unit": "W"
+            },
+            {
+              "function": "0x03",
+              "address": 564,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "tag": "工作模式",
+              "source": {
+                "kind": "const",
+                "value": 1
+              }
+            },
+            {
+              "function": "0x03",
+              "address": 565,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "tag": "内部温度（raw/10）",
+              "source": {
+                "kind": "const",
+                "value": 400
+              },
+              "unit": "0.1℃"
+            },
+            {
+              "function": "0x03",
+              "address": 566,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "tag": "日发电量（raw/10）",
+              "source": {
+                "kind": "const",
+                "value": 300
+              },
+              "unit": "0.1kWh"
+            },
+            {
+              "function": "0x03",
+              "address": 886,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "tag": "功率因数（raw/1000）",
+              "source": {
+                "kind": "const",
+                "value": 1000
+              }
+            },
+            {
+              "function": "0x03",
+              "address": 893,
+              "type": "INT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "tag": "AC无功功率（raw/1000）",
+              "source": {
+                "kind": "const",
+                "value": 0
+              },
+              "unit": "0.001kvar"
+            },
+            {
+              "function": "0x03",
+              "address": 30115,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "tag": "AB线电压（raw/10）",
+              "source": {
+                "kind": "const",
+                "value": 4000
+              },
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x03",
+              "address": 30116,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "tag": "BC线电压（raw/10）",
+              "source": {
+                "kind": "const",
+                "value": 4000
+              },
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x03",
+              "address": 30117,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "tag": "CA线电压（raw/10）",
+              "source": {
+                "kind": "const",
+                "value": 4000
+              },
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x03",
+              "address": 30133,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "tag": "AC视在功率（raw/1000）",
+              "source": {
+                "kind": "const",
+                "value": 55000
+              },
+              "unit": "0.001kVA"
+            },
+            {
+              "function": "0x03",
+              "address": 30137,
+              "type": "INT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "tag": "输入总功率（raw/1000）",
+              "source": {
+                "kind": "const",
+                "value": 60000
+              },
+              "unit": "0.001kW"
+            },
+            {
+              "function": "0x03",
+              "address": 32086,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "tag": "转换效率（raw/100）",
+              "source": {
+                "kind": "const",
+                "value": 9800
+              },
+              "unit": "0.01%"
+            },
+            {
+              "function": "0x03",
+              "address": 37207,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "tag": "运行标志7",
+              "source": {
+                "kind": "const",
+                "value": 6
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

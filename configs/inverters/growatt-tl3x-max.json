@@ -1,0 +1,3433 @@
+{
+  "buses": [
+    {
+      "name": "growatt-tl3x-max",
+      "link": "/home/daniel/serial-sim/tty0",
+      "slaves": [
+        {
+          "device_id": 1,
+          "response_delay_ms": 0,
+          "unmapped_policy": "exception",
+          "registers": [
+            {
+              "function": "0x03",
+              "address": 0,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 1
+              },
+              "tag": "远程开关",
+              "unit": ""
+            },
+            {
+              "function": "0x03",
+              "address": 1,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "安全功能使能位图",
+              "unit": ""
+            },
+            {
+              "function": "0x03",
+              "address": 2,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PF命令记忆状态",
+              "unit": ""
+            },
+            {
+              "function": "0x03",
+              "address": 3,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 255
+              },
+              "tag": "有功功率百分比 [%/LSB] raw=0..100或255(不限制)",
+              "unit": "%"
+            },
+            {
+              "function": "0x03",
+              "address": 4,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 255
+              },
+              "tag": "无功功率百分比原始值 [%/LSB] 原文-100..100或255；负数编码未明确",
+              "unit": "%"
+            },
+            {
+              "function": "0x03",
+              "address": 5,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 10000
+              },
+              "tag": "功率因数设置 [0.0001/LSB]",
+              "unit": "0.0001"
+            },
+            {
+              "function": "0x03",
+              "address": 6,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "额定视在功率 [0.1VA/LSB]",
+              "unit": "0.1VA"
+            },
+            {
+              "function": "0x03",
+              "address": 8,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "正常工作PV电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x03",
+              "address": 15,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "LCD语言",
+              "unit": ""
+            },
+            {
+              "function": "0x03",
+              "address": 16,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "国家已选择标志",
+              "unit": ""
+            },
+            {
+              "function": "0x03",
+              "address": 17,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "输入启动电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x03",
+              "address": 18,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "并网时间 [s/LSB]",
+              "unit": "s"
+            },
+            {
+              "function": "0x03",
+              "address": 19,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "重连时间 [s/LSB]",
+              "unit": "s"
+            },
+            {
+              "function": "0x03",
+              "address": 20,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "加载速率 [0.1%/LSB]",
+              "unit": "0.1%"
+            },
+            {
+              "function": "0x03",
+              "address": 21,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "重启加载速率 [0.1%/LSB]",
+              "unit": "0.1%"
+            },
+            {
+              "function": "0x03",
+              "address": 22,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "波特率选择 仅模拟寄存器存储；不改变总线时序",
+              "unit": ""
+            },
+            {
+              "function": "0x03",
+              "address": 30,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 1
+              },
+              "tag": "通信站号 写入不改变模拟器device_id",
+              "unit": ""
+            },
+            {
+              "function": "0x03",
+              "address": 52,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "低电网电压保护 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x03",
+              "address": 53,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "高电网电压保护 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x03",
+              "address": 54,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "低电网频率保护 [0.01Hz/LSB]",
+              "unit": "0.01Hz"
+            },
+            {
+              "function": "0x03",
+              "address": 55,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "高电网频率保护 [0.01Hz/LSB]",
+              "unit": "0.01Hz"
+            },
+            {
+              "function": "0x03",
+              "address": 56,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "低电网电压二阶保护 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x03",
+              "address": 57,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "高电网电压二阶保护 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x03",
+              "address": 58,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "低电网频率二阶保护 [0.01Hz/LSB]",
+              "unit": "0.01Hz"
+            },
+            {
+              "function": "0x03",
+              "address": 59,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "高电网频率二阶保护 [0.01Hz/LSB]",
+              "unit": "0.01Hz"
+            },
+            {
+              "function": "0x03",
+              "address": 60,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "低电网电压三阶保护 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x03",
+              "address": 61,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "高电网电压三阶保护 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x03",
+              "address": 62,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "低电网频率三阶保护 [0.01Hz/LSB]",
+              "unit": "0.01Hz"
+            },
+            {
+              "function": "0x03",
+              "address": 63,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "高电网频率三阶保护 [0.01Hz/LSB]",
+              "unit": "0.01Hz"
+            },
+            {
+              "function": "0x03",
+              "address": 64,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "并网低压限制 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x03",
+              "address": 65,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "并网高压限制 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x03",
+              "address": 66,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "并网低频限制 [0.01Hz/LSB]",
+              "unit": "0.01Hz"
+            },
+            {
+              "function": "0x03",
+              "address": 67,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "并网高频限制 [0.01Hz/LSB]",
+              "unit": "0.01Hz"
+            },
+            {
+              "function": "0x03",
+              "address": 68,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "低压一阶保护时间 [周期/LSB]",
+              "unit": "周期"
+            },
+            {
+              "function": "0x03",
+              "address": 69,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "高压一阶保护时间 [周期/LSB]",
+              "unit": "周期"
+            },
+            {
+              "function": "0x03",
+              "address": 70,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "低压二阶保护时间 [周期/LSB]",
+              "unit": "周期"
+            },
+            {
+              "function": "0x03",
+              "address": 71,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "高压二阶保护时间 [周期/LSB]",
+              "unit": "周期"
+            },
+            {
+              "function": "0x03",
+              "address": 72,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "低频一阶保护时间 [周期/LSB]",
+              "unit": "周期"
+            },
+            {
+              "function": "0x03",
+              "address": 73,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "高频一阶保护时间 [周期/LSB]",
+              "unit": "周期"
+            },
+            {
+              "function": "0x03",
+              "address": 74,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "低频二阶保护时间 [周期/LSB]",
+              "unit": "周期"
+            },
+            {
+              "function": "0x03",
+              "address": 75,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "高频二阶保护时间 [周期/LSB]",
+              "unit": "周期"
+            },
+            {
+              "function": "0x03",
+              "address": 76,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "低压三阶保护时间 [周期/LSB]",
+              "unit": "周期"
+            },
+            {
+              "function": "0x03",
+              "address": 77,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "高压三阶保护时间 [周期/LSB]",
+              "unit": "周期"
+            },
+            {
+              "function": "0x03",
+              "address": 78,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "低频三阶保护时间 [周期/LSB]",
+              "unit": "周期"
+            },
+            {
+              "function": "0x03",
+              "address": 79,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "高频三阶保护时间 [周期/LSB]",
+              "unit": "周期"
+            },
+            {
+              "function": "0x03",
+              "address": 80,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "十分钟电压保护 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x03",
+              "address": 81,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV高压故障阈值 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x03",
+              "address": 88,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "Modbus版本 原始版本编码",
+              "unit": ""
+            },
+            {
+              "function": "0x03",
+              "address": 89,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PF功能模式",
+              "unit": ""
+            },
+            {
+              "function": "0x03",
+              "address": 91,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "频率降额起点 [0.01Hz/LSB]",
+              "unit": "0.01Hz"
+            },
+            {
+              "function": "0x03",
+              "address": 92,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "频率加载限制率 [0.1/LSB]",
+              "unit": "0.1"
+            },
+            {
+              "function": "0x03",
+              "address": 93,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "QV曲线V1S [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x03",
+              "address": 94,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "QV曲线V2S [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x03",
+              "address": 95,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "QV曲线V1L [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x03",
+              "address": 96,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "QV曲线V2L [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x03",
+              "address": 97,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "QV锁入功率 [%/LSB]",
+              "unit": "%"
+            },
+            {
+              "function": "0x03",
+              "address": 98,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "QV锁出功率 [%/LSB]",
+              "unit": "%"
+            },
+            {
+              "function": "0x03",
+              "address": 99,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PF锁入线电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x03",
+              "address": 100,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PF锁出线电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x03",
+              "address": 101,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 4096
+              },
+              "tag": "PF调整值1 [1/4096/LSB]",
+              "unit": "1/4096"
+            },
+            {
+              "function": "0x03",
+              "address": 102,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 4096
+              },
+              "tag": "PF调整值2 [1/4096/LSB]",
+              "unit": "1/4096"
+            },
+            {
+              "function": "0x03",
+              "address": 103,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 4096
+              },
+              "tag": "PF调整值3 [1/4096/LSB]",
+              "unit": "1/4096"
+            },
+            {
+              "function": "0x03",
+              "address": 104,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 4096
+              },
+              "tag": "PF调整值4 [1/4096/LSB]",
+              "unit": "1/4096"
+            },
+            {
+              "function": "0x03",
+              "address": 105,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 4096
+              },
+              "tag": "PF调整值5 [1/4096/LSB]",
+              "unit": "1/4096"
+            },
+            {
+              "function": "0x03",
+              "address": 106,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 4096
+              },
+              "tag": "PF调整值6 [1/4096/LSB]",
+              "unit": "1/4096"
+            },
+            {
+              "function": "0x03",
+              "address": 107,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "QV无功延时 [s/LSB]",
+              "unit": "s"
+            },
+            {
+              "function": "0x03",
+              "address": 108,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "过频降额延时 [50ms/LSB]",
+              "unit": "50ms"
+            },
+            {
+              "function": "0x03",
+              "address": 109,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "QV曲线Qmax [0.1%/LSB]",
+              "unit": "0.1%"
+            },
+            {
+              "function": "0x03",
+              "address": 110,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 255
+              },
+              "tag": "PF限制线点1负载 [%/LSB] 255表示没有该点",
+              "unit": "%"
+            },
+            {
+              "function": "0x03",
+              "address": 111,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PF限制线点1功率因数原始值 原文raw=0..20000；未明示统一倍率",
+              "unit": ""
+            },
+            {
+              "function": "0x03",
+              "address": 112,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 255
+              },
+              "tag": "PF限制线点2负载 [%/LSB] 255表示没有该点",
+              "unit": "%"
+            },
+            {
+              "function": "0x03",
+              "address": 113,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PF限制线点2功率因数原始值 原文raw=0..20000；未明示统一倍率",
+              "unit": ""
+            },
+            {
+              "function": "0x03",
+              "address": 114,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 255
+              },
+              "tag": "PF限制线点3负载 [%/LSB] 255表示没有该点",
+              "unit": "%"
+            },
+            {
+              "function": "0x03",
+              "address": 115,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PF限制线点3功率因数原始值 原文raw=0..20000；未明示统一倍率",
+              "unit": ""
+            },
+            {
+              "function": "0x03",
+              "address": 116,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 255
+              },
+              "tag": "PF限制线点4负载 [%/LSB] 255表示没有该点",
+              "unit": "%"
+            },
+            {
+              "function": "0x03",
+              "address": 117,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PF限制线点4功率因数原始值 原文raw=0..20000；未明示统一倍率",
+              "unit": ""
+            },
+            {
+              "function": "0x03",
+              "address": 122,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "单机防逆流使能 0禁用 1=485 2=232 3=CT",
+              "unit": ""
+            },
+            {
+              "function": "0x03",
+              "address": 123,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "防逆流电表功率限值 [0.1%/LSB] 原文-1000..1000；负数编码未明确",
+              "unit": "0.1%"
+            },
+            {
+              "function": "0x03",
+              "address": 124,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "MPPT模式 0独立 1DC源 2多路",
+              "unit": ""
+            },
+            {
+              "function": "0x03",
+              "address": 137,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "无功设置值原始32位 [0.1var/LSB] H/L；原文未明确负数编码",
+              "unit": "0.1var"
+            },
+            {
+              "function": "0x03",
+              "address": 139,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "无功输出优先使能",
+              "unit": ""
+            },
+            {
+              "function": "0x03",
+              "address": 141,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "夜间SVG使能",
+              "unit": ""
+            },
+            {
+              "function": "0x03",
+              "address": 142,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "欠频加载点 [0.01Hz/LSB]",
+              "unit": "0.01Hz"
+            },
+            {
+              "function": "0x03",
+              "address": 143,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "过频降载恢复点 [0.01Hz/LSB]",
+              "unit": "0.01Hz"
+            },
+            {
+              "function": "0x03",
+              "address": 144,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "过频降载恢复延时 [50ms/LSB]",
+              "unit": "50ms"
+            },
+            {
+              "function": "0x03",
+              "address": 145,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "零电流模式使能",
+              "unit": ""
+            },
+            {
+              "function": "0x03",
+              "address": 146,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "零电流静态低压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x03",
+              "address": 147,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "零电流静态高压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x03",
+              "address": 148,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "电网高压降载高点 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x03",
+              "address": 149,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "电网高压降载低点 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x03",
+              "address": 150,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "QV无功稳定时间 [0.1s/LSB]",
+              "unit": "0.1s"
+            },
+            {
+              "function": "0x03",
+              "address": 151,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "欠频加载停止点 [0.01Hz/LSB]",
+              "unit": "0.01Hz"
+            },
+            {
+              "function": "0x03",
+              "address": 180,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "电表连接标志",
+              "unit": ""
+            },
+            {
+              "function": "0x03",
+              "address": 181,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "优化器个数",
+              "unit": ""
+            },
+            {
+              "function": "0x03",
+              "address": 182,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "优化器配置完成标志",
+              "unit": ""
+            },
+            {
+              "function": "0x03",
+              "address": 183,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "组串监控路数",
+              "unit": ""
+            },
+            {
+              "function": "0x03",
+              "address": 201,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PID工作模式",
+              "unit": ""
+            },
+            {
+              "function": "0x03",
+              "address": 202,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PID开断控制",
+              "unit": ""
+            },
+            {
+              "function": "0x03",
+              "address": 203,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PID输出电压选项 [V/LSB]",
+              "unit": "V"
+            },
+            {
+              "function": "0x03",
+              "address": 229,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readwrite",
+              "source": {
+                "kind": "manual",
+                "value": 1000
+              },
+              "tag": "发电量校准系数 [0.1%/LSB]",
+              "unit": "0.1%"
+            },
+            {
+              "function": "0x04",
+              "address": 0,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 1
+              },
+              "tag": "运行状态 0等待 1运行 3故障",
+              "unit": ""
+            },
+            {
+              "function": "0x04",
+              "address": 1,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV输入总功率 [0.1W/LSB]",
+              "unit": "0.1W"
+            },
+            {
+              "function": "0x04",
+              "address": 3,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV1电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 4,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV1电流 [0.1A/LSB]",
+              "unit": "0.1A"
+            },
+            {
+              "function": "0x04",
+              "address": 5,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV1功率 [0.1W/LSB]",
+              "unit": "0.1W"
+            },
+            {
+              "function": "0x04",
+              "address": 7,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV2电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 8,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV2电流 [0.1A/LSB]",
+              "unit": "0.1A"
+            },
+            {
+              "function": "0x04",
+              "address": 9,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV2功率 [0.1W/LSB]",
+              "unit": "0.1W"
+            },
+            {
+              "function": "0x04",
+              "address": 11,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV3电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 12,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV3电流 [0.1A/LSB]",
+              "unit": "0.1A"
+            },
+            {
+              "function": "0x04",
+              "address": 13,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV3功率 [0.1W/LSB]",
+              "unit": "0.1W"
+            },
+            {
+              "function": "0x04",
+              "address": 15,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV4电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 16,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV4电流 [0.1A/LSB]",
+              "unit": "0.1A"
+            },
+            {
+              "function": "0x04",
+              "address": 17,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV4功率 [0.1W/LSB]",
+              "unit": "0.1W"
+            },
+            {
+              "function": "0x04",
+              "address": 19,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV5电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 20,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV5电流 [0.1A/LSB]",
+              "unit": "0.1A"
+            },
+            {
+              "function": "0x04",
+              "address": 21,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV5功率 [0.1W/LSB]",
+              "unit": "0.1W"
+            },
+            {
+              "function": "0x04",
+              "address": 23,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV6电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 24,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV6电流 [0.1A/LSB]",
+              "unit": "0.1A"
+            },
+            {
+              "function": "0x04",
+              "address": 25,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV6功率 [0.1W/LSB]",
+              "unit": "0.1W"
+            },
+            {
+              "function": "0x04",
+              "address": 27,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV7电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 28,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV7电流 [0.1A/LSB]",
+              "unit": "0.1A"
+            },
+            {
+              "function": "0x04",
+              "address": 29,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV7功率 [0.1W/LSB]",
+              "unit": "0.1W"
+            },
+            {
+              "function": "0x04",
+              "address": 31,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV8电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 32,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV8电流 [0.1A/LSB]",
+              "unit": "0.1A"
+            },
+            {
+              "function": "0x04",
+              "address": 33,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV8功率 [0.1W/LSB]",
+              "unit": "0.1W"
+            },
+            {
+              "function": "0x04",
+              "address": 35,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 123456
+              },
+              "tag": "交流输出有功功率 [0.1W/LSB]",
+              "unit": "0.1W"
+            },
+            {
+              "function": "0x04",
+              "address": 37,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 5000
+              },
+              "tag": "电网频率 [0.01Hz/LSB]",
+              "unit": "0.01Hz"
+            },
+            {
+              "function": "0x04",
+              "address": 38,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "R相电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 39,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "R相电流 [0.1A/LSB]",
+              "unit": "0.1A"
+            },
+            {
+              "function": "0x04",
+              "address": 40,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "R相输出功率 [0.1VA/LSB]",
+              "unit": "0.1VA"
+            },
+            {
+              "function": "0x04",
+              "address": 42,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "S相电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 43,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "S相电流 [0.1A/LSB]",
+              "unit": "0.1A"
+            },
+            {
+              "function": "0x04",
+              "address": 44,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "S相输出功率 [0.1VA/LSB]",
+              "unit": "0.1VA"
+            },
+            {
+              "function": "0x04",
+              "address": 46,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "T相电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 47,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "T相电流 [0.1A/LSB]",
+              "unit": "0.1A"
+            },
+            {
+              "function": "0x04",
+              "address": 48,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "T相输出功率 [0.1VA/LSB]",
+              "unit": "0.1VA"
+            },
+            {
+              "function": "0x04",
+              "address": 50,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "RS线电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 51,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "ST线电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 52,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "TR线电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 53,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 1234
+              },
+              "tag": "当天交流发电量 [0.1kWh/LSB]",
+              "unit": "0.1kWh"
+            },
+            {
+              "function": "0x04",
+              "address": 55,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 1234567
+              },
+              "tag": "累计交流发电量 [0.1kWh/LSB]",
+              "unit": "0.1kWh"
+            },
+            {
+              "function": "0x04",
+              "address": 57,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "累计工作时间 [0.5s/LSB]",
+              "unit": "0.5s"
+            },
+            {
+              "function": "0x04",
+              "address": 59,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV1当天电量 [0.1kWh/LSB]",
+              "unit": "0.1kWh"
+            },
+            {
+              "function": "0x04",
+              "address": 61,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV1累计电量 [0.1kWh/LSB]",
+              "unit": "0.1kWh"
+            },
+            {
+              "function": "0x04",
+              "address": 63,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV2当天电量 [0.1kWh/LSB]",
+              "unit": "0.1kWh"
+            },
+            {
+              "function": "0x04",
+              "address": 65,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV2累计电量 [0.1kWh/LSB]",
+              "unit": "0.1kWh"
+            },
+            {
+              "function": "0x04",
+              "address": 67,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV3当天电量 [0.1kWh/LSB]",
+              "unit": "0.1kWh"
+            },
+            {
+              "function": "0x04",
+              "address": 69,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV3累计电量 [0.1kWh/LSB]",
+              "unit": "0.1kWh"
+            },
+            {
+              "function": "0x04",
+              "address": 71,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV4当天电量 [0.1kWh/LSB]",
+              "unit": "0.1kWh"
+            },
+            {
+              "function": "0x04",
+              "address": 73,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV4累计电量 [0.1kWh/LSB]",
+              "unit": "0.1kWh"
+            },
+            {
+              "function": "0x04",
+              "address": 75,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV5当天电量 [0.1kWh/LSB]",
+              "unit": "0.1kWh"
+            },
+            {
+              "function": "0x04",
+              "address": 77,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV5累计电量 [0.1kWh/LSB]",
+              "unit": "0.1kWh"
+            },
+            {
+              "function": "0x04",
+              "address": 79,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV6当天电量 [0.1kWh/LSB]",
+              "unit": "0.1kWh"
+            },
+            {
+              "function": "0x04",
+              "address": 81,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV6累计电量 [0.1kWh/LSB]",
+              "unit": "0.1kWh"
+            },
+            {
+              "function": "0x04",
+              "address": 83,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV7当天电量 [0.1kWh/LSB]",
+              "unit": "0.1kWh"
+            },
+            {
+              "function": "0x04",
+              "address": 85,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV7累计电量 [0.1kWh/LSB]",
+              "unit": "0.1kWh"
+            },
+            {
+              "function": "0x04",
+              "address": 87,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV8当天电量 [0.1kWh/LSB]",
+              "unit": "0.1kWh"
+            },
+            {
+              "function": "0x04",
+              "address": 89,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV8累计电量 [0.1kWh/LSB]",
+              "unit": "0.1kWh"
+            },
+            {
+              "function": "0x04",
+              "address": 91,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "累计PV总电量 [0.1kWh/LSB]",
+              "unit": "0.1kWh"
+            },
+            {
+              "function": "0x04",
+              "address": 93,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 355
+              },
+              "tag": "逆变器温度 [0.1℃/LSB] 原始无符号字；负温编码未明确",
+              "unit": "0.1℃"
+            },
+            {
+              "function": "0x04",
+              "address": 94,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "IPM温度 [0.1℃/LSB] 原始无符号字；负温编码未明确",
+              "unit": "0.1℃"
+            },
+            {
+              "function": "0x04",
+              "address": 95,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "BOOST温度 [0.1℃/LSB] 原始无符号字；负温编码未明确",
+              "unit": "0.1℃"
+            },
+            {
+              "function": "0x04",
+              "address": 98,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "P Bus内部电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 99,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "N Bus内部电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 100,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "当前功率因数原始值 raw=0..20000；原文未明示线性倍率",
+              "unit": ""
+            },
+            {
+              "function": "0x04",
+              "address": 101,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "实际输出功率百分比 [%/LSB]",
+              "unit": "%"
+            },
+            {
+              "function": "0x04",
+              "address": 102,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "输出最大功率限制 [0.1W/LSB]",
+              "unit": "0.1W"
+            },
+            {
+              "function": "0x04",
+              "address": 104,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "降额模式 0无 1PV 3AC 4频率 5BOOST温度 6逆变器温度 7控制",
+              "unit": ""
+            },
+            {
+              "function": "0x04",
+              "address": 105,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "MAX逆变器故障码 原文仅MAX；其他型号不适用",
+              "unit": ""
+            },
+            {
+              "function": "0x04",
+              "address": 106,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "MAX逆变器故障位图 PDF第35页仅标MAX；附注8，高字在前",
+              "unit": ""
+            },
+            {
+              "function": "0x04",
+              "address": 110,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "警告位图",
+              "unit": ""
+            },
+            {
+              "function": "0x04",
+              "address": 112,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "MAX逆变器警告码 原文仅MAX；其他型号不适用",
+              "unit": ""
+            },
+            {
+              "function": "0x04",
+              "address": 113,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "MAX实际功率百分比 [%/LSB] 原文仅MAX；其他型号不适用",
+              "unit": "%"
+            },
+            {
+              "function": "0x04",
+              "address": 114,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "MAX启动延时原始值 原文仅MAX；其他型号不适用",
+              "unit": ""
+            },
+            {
+              "function": "0x04",
+              "address": 115,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "MAX逆变器全部故障码 原文仅MAX；其他型号不适用",
+              "unit": ""
+            },
+            {
+              "function": "0x04",
+              "address": 125,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PID PV1PE电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 126,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PID PV1PE电流原始值 [0.1mA/LSB] 原文-10..10mA，负数编码未明确",
+              "unit": "0.1mA"
+            },
+            {
+              "function": "0x04",
+              "address": 127,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PID PV2PE电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 128,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PID PV2PE电流原始值 [0.1mA/LSB] 原文-10..10mA，负数编码未明确",
+              "unit": "0.1mA"
+            },
+            {
+              "function": "0x04",
+              "address": 129,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PID PV3PE电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 130,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PID PV3PE电流原始值 [0.1mA/LSB] 原文-10..10mA，负数编码未明确",
+              "unit": "0.1mA"
+            },
+            {
+              "function": "0x04",
+              "address": 131,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PID PV4PE电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 132,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PID PV4PE电流原始值 [0.1mA/LSB] 原文-10..10mA，负数编码未明确",
+              "unit": "0.1mA"
+            },
+            {
+              "function": "0x04",
+              "address": 133,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PID PV5PE电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 134,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PID PV5PE电流原始值 [0.1mA/LSB] 原文-10..10mA，负数编码未明确",
+              "unit": "0.1mA"
+            },
+            {
+              "function": "0x04",
+              "address": 135,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PID PV6PE电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 136,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PID PV6PE电流原始值 [0.1mA/LSB] 原文-10..10mA，负数编码未明确",
+              "unit": "0.1mA"
+            },
+            {
+              "function": "0x04",
+              "address": 137,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PID PV7PE电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 138,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PID PV7PE电流原始值 [0.1mA/LSB] 原文-10..10mA，负数编码未明确",
+              "unit": "0.1mA"
+            },
+            {
+              "function": "0x04",
+              "address": 139,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PID PV8PE电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 140,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PID PV8PE电流原始值 [0.1mA/LSB] 原文-10..10mA，负数编码未明确",
+              "unit": "0.1mA"
+            },
+            {
+              "function": "0x04",
+              "address": 141,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PID状态 低8位：1等待 2运行 3故障",
+              "unit": ""
+            },
+            {
+              "function": "0x04",
+              "address": 142,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "组串1电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 143,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "组串1电流原始值 [0.1A/LSB] 原文-15..15A，负数编码未明确",
+              "unit": "0.1A"
+            },
+            {
+              "function": "0x04",
+              "address": 144,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "组串2电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 145,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "组串2电流原始值 [0.1A/LSB] 原文-15..15A，负数编码未明确",
+              "unit": "0.1A"
+            },
+            {
+              "function": "0x04",
+              "address": 146,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "组串3电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 147,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "组串3电流原始值 [0.1A/LSB] 原文-15..15A，负数编码未明确",
+              "unit": "0.1A"
+            },
+            {
+              "function": "0x04",
+              "address": 148,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "组串4电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 149,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "组串4电流原始值 [0.1A/LSB] 原文-15..15A，负数编码未明确",
+              "unit": "0.1A"
+            },
+            {
+              "function": "0x04",
+              "address": 150,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "组串5电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 151,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "组串5电流原始值 [0.1A/LSB] 原文-15..15A，负数编码未明确",
+              "unit": "0.1A"
+            },
+            {
+              "function": "0x04",
+              "address": 152,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "组串6电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 153,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "组串6电流原始值 [0.1A/LSB] 原文-15..15A，负数编码未明确",
+              "unit": "0.1A"
+            },
+            {
+              "function": "0x04",
+              "address": 154,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "组串7电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 155,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "组串7电流原始值 [0.1A/LSB] 原文-15..15A，负数编码未明确",
+              "unit": "0.1A"
+            },
+            {
+              "function": "0x04",
+              "address": 156,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "组串8电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 157,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "组串8电流原始值 [0.1A/LSB] 原文-15..15A，负数编码未明确",
+              "unit": "0.1A"
+            },
+            {
+              "function": "0x04",
+              "address": 158,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "组串9电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 159,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "组串9电流原始值 [0.1A/LSB] 原文-15..15A，负数编码未明确",
+              "unit": "0.1A"
+            },
+            {
+              "function": "0x04",
+              "address": 160,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "组串10电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 161,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "组串10电流原始值 [0.1A/LSB] 原文-15..15A，负数编码未明确",
+              "unit": "0.1A"
+            },
+            {
+              "function": "0x04",
+              "address": 162,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "组串11电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 163,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "组串11电流原始值 [0.1A/LSB] 原文-15..15A，负数编码未明确",
+              "unit": "0.1A"
+            },
+            {
+              "function": "0x04",
+              "address": 164,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "组串12电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 165,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "组串12电流原始值 [0.1A/LSB] 原文-15..15A，负数编码未明确",
+              "unit": "0.1A"
+            },
+            {
+              "function": "0x04",
+              "address": 166,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "组串13电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 167,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "组串13电流原始值 [0.1A/LSB] 原文-15..15A，负数编码未明确",
+              "unit": "0.1A"
+            },
+            {
+              "function": "0x04",
+              "address": 168,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "组串14电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 169,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "组串14电流原始值 [0.1A/LSB] 原文-15..15A，负数编码未明确",
+              "unit": "0.1A"
+            },
+            {
+              "function": "0x04",
+              "address": 170,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "组串15电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 171,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "组串15电流原始值 [0.1A/LSB] 原文-15..15A，负数编码未明确",
+              "unit": "0.1A"
+            },
+            {
+              "function": "0x04",
+              "address": 172,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "组串16电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 173,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "组串16电流原始值 [0.1A/LSB] 原文-15..15A，负数编码未明确",
+              "unit": "0.1A"
+            },
+            {
+              "function": "0x04",
+              "address": 174,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "组串不匹配位图",
+              "unit": ""
+            },
+            {
+              "function": "0x04",
+              "address": 175,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "组串电流不平衡位图",
+              "unit": ""
+            },
+            {
+              "function": "0x04",
+              "address": 176,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "组串断开位图",
+              "unit": ""
+            },
+            {
+              "function": "0x04",
+              "address": 177,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PID故障码",
+              "unit": ""
+            },
+            {
+              "function": "0x04",
+              "address": 178,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "组串提示",
+              "unit": ""
+            },
+            {
+              "function": "0x04",
+              "address": 179,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV1..8警告值",
+              "unit": ""
+            },
+            {
+              "function": "0x04",
+              "address": 180,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "DSP075警告值",
+              "unit": ""
+            },
+            {
+              "function": "0x04",
+              "address": 181,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "DSP075故障值",
+              "unit": ""
+            },
+            {
+              "function": "0x04",
+              "address": 200,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PV绝缘阻抗 [kΩ/LSB]",
+              "unit": "kΩ"
+            },
+            {
+              "function": "0x04",
+              "address": 201,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "R相DCI分量 [0.1mA/LSB]",
+              "unit": "0.1mA"
+            },
+            {
+              "function": "0x04",
+              "address": 202,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "S相DCI分量 [0.1mA/LSB]",
+              "unit": "0.1mA"
+            },
+            {
+              "function": "0x04",
+              "address": 203,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "T相DCI分量 [0.1mA/LSB]",
+              "unit": "0.1mA"
+            },
+            {
+              "function": "0x04",
+              "address": 204,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "PID母线电压 [0.1V/LSB]",
+              "unit": "0.1V"
+            },
+            {
+              "function": "0x04",
+              "address": 205,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "漏电流 [mA/LSB]",
+              "unit": "mA"
+            },
+            {
+              "function": "0x04",
+              "address": 229,
+              "type": "UINT16",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "风扇故障位图",
+              "unit": ""
+            },
+            {
+              "function": "0x04",
+              "address": 230,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "输出视在功率 [0.1W/LSB] 原文单位0.1W，未擅自改成VA",
+              "unit": "0.1W"
+            },
+            {
+              "function": "0x04",
+              "address": 232,
+              "type": "INT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": -12345
+              },
+              "tag": "实际输出无功功率 [0.1var/LSB] 原文明示有符号",
+              "unit": "0.1var"
+            },
+            {
+              "function": "0x04",
+              "address": 234,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "最大输出无功功率 [0.1var/LSB]",
+              "unit": "0.1var"
+            },
+            {
+              "function": "0x04",
+              "address": 236,
+              "type": "UINT32",
+              "word_order": "HL",
+              "byte_order": "AB",
+              "access": "readonly",
+              "source": {
+                "kind": "manual",
+                "value": 0
+              },
+              "tag": "无功总发电量 [0.1kWh/LSB] 保留原文单位",
+              "unit": "0.1kWh"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

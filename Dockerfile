@@ -40,6 +40,8 @@ COPY --from=builder /out/slavesim /slavesim
 # 主站探针一并放入镜像，便于在设备上直接自检收发链路。
 COPY --from=builder /out/probe /probe
 COPY config.example.json /etc/slavesim/config.example.json
+COPY config.inverters.example.json /opt/slavesim/examples/config.inverters.example.json
+COPY configs/inverters /opt/slavesim/examples/inverters
 COPY scripts/runtime.py scripts/update.py scripts/versioning.py /app/
 COPY deploy/updater.runtime.example.json /etc/slavesim/updater.json
 
