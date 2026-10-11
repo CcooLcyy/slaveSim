@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>slaveSim - Modbus RTU 从站模拟器</title>
+<title>slaveSim - 电网终端设备模拟器</title>
 <style>
   :root {
     --border: #d8dde3;
@@ -156,13 +156,60 @@
   button.danger { color: #b42318; }
   button:disabled { opacity: .55; cursor: wait; }
   .config-empty { color: var(--muted); padding: 20px; text-align: center; }
+  #huawei-models { display: grid; gap: 16px; margin-bottom: 16px; }
+  .huawei-card { border-top: 3px solid #d5a23d; }
+  .huawei-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  .huawei-heading h2 { margin: 0; font-size: 15px; }
+  .huawei-status { border-radius: 14px; background: #eaf7ee; color: #1b703b; padding: 4px 10px; font-size: 12px; }
+  .huawei-status[data-state="限电降额"] { background: #fff5d9; color: #825911; }
+  .huawei-status[data-state="待机"] { background: #eef1f4; color: #536170; }
+  .huawei-status[data-state="连接中断"] { background: #fff0ee; color: #b42318; }
+  .huawei-body { display: grid; grid-template-columns: minmax(300px, 1fr) minmax(470px, 1.4fr); gap: 20px; padding: 16px; }
+  .huawei-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .huawei-metric { background: #f6f8fa; border-radius: 5px; padding: 10px 12px; display: flex; flex-direction: column; gap: 7px; }
+  .huawei-metric span { color: var(--muted); font-size: 12px; }
+  .huawei-metric strong { font-size: 19px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .huawei-caption, .huawei-message, .huawei-boundary { color: var(--muted); font-size: 12px; line-height: 1.6; }
+  .huawei-phases { font-variant-numeric: tabular-nums; }
+  .huawei-trend { margin-top: 18px; padding: 10px 12px; border: 1px solid #e8ecf0; border-radius: 5px; }
+  .huawei-trend-legend { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; font-size: 12px; }
+  .huawei-trend-legend strong { margin-right: auto; }
+  .huawei-trend-actual { color: #1f6feb; stroke: #1f6feb; stroke-width: 2; }
+  .huawei-trend-target { color: #ba7c0e; stroke: #ba7c0e; stroke-width: 2; stroke-dasharray: 5 4; }
+  .huawei-trend-chart { display: block; width: 100%; margin-top: 12px; }
+  .huawei-trend-grid { stroke: #e8ecf0; stroke-width: 1; }
+  .huawei-trend .huawei-caption { margin: 3px 0 0; }
+  .huawei-phases td, .huawei-phases th { padding: 7px 5px; white-space: nowrap; font-size: 12px; }
+  .huawei-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .huawei-fieldset { border: 1px solid var(--border); border-radius: 5px; padding: 12px; margin: 0; min-width: 0; }
+  .huawei-fieldset legend { font-weight: 600; padding: 0 5px; }
+  .huawei-presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .huawei-controls button { padding: 6px 8px; }
+  .huawei-command { display: flex; align-items: flex-end; gap: 8px; margin: 10px 0; }
+  .huawei-command label { display: grid; gap: 5px; flex: 1; min-width: 0; font-size: 12px; color: #444d56; }
+  .huawei-command input { width: 100%; min-width: 0; padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; font: inherit; font-size: 14px; }
+  .huawei-command button { flex-shrink: 0; }
+  .huawei-solar { display: grid; gap: 10px; color: #8b6516; background: #fff9e9; border-radius: 4px; padding: 12px; }
+  .huawei-solar strong { font-size: 22px; font-variant-numeric: tabular-nums; }
+  .huawei-solar input { width: 100%; accent-color: #ca9426; }
+  .huawei-controls .config-grid { grid-template-columns: 1fr; }
+  .huawei-message { margin: 8px 0 0; min-height: 38px; }
+  .huawei-message.error { color: #b42318; }
+  .huawei-boundary { border-top: 1px solid #eef1f4; margin: 0; padding: 10px 16px; }
+  .huawei-explanation { padding: 0 16px 14px; font-size: 12px; color: #536170; line-height: 1.7; }
+  .huawei-explanation summary { cursor: pointer; }
+  .model-editor { margin: 12px 0; border: 1px solid #e8d7a5; border-radius: 4px; padding: 12px; background: #fffdf7; }
+  .model-editor h5 { font-size: 13px; margin: 0; }
+  .model-editor p { color: var(--muted); font-size: 12px; line-height: 1.6; }
+  @media (max-width: 1050px) { .huawei-body { grid-template-columns: 1fr; } }
+  @media (max-width: 600px) { .huawei-controls { grid-template-columns: 1fr; } .huawei-body { padding: 12px; } .huawei-metric strong { font-size: 17px; } }
   @media (max-width: 650px) { main { padding: 12px; } .bus-fields { grid-template-columns: 1fr; } header { flex-wrap: wrap; } }
 </style>
 </head>
 <body>
 <header>
   <h1>slaveSim</h1>
-  <span class="hint">Modbus RTU 从站模拟器 · 虚拟串口由 PTY 提供</span>
+  <span class="hint">电网终端设备模拟器 · Modbus RTU / PTY 接入</span>
 </header>
 
 <main>
@@ -209,6 +256,7 @@
     </form>
   </section>
   <section id="runtime-panel" aria-label="运行状态与报文日志">
+  <div id="huawei-models" hidden></div>
   <div id="buses"></div>
 
   <div class="card">
@@ -307,7 +355,10 @@ function render(state) {
           tdSet.appendChild(document.createTextNode(' '));
           tdSet.appendChild(btn);
         } else {
-          tdSet.innerHTML = '<span class="tag">只读</span>';
+          const readonly = document.createElement('span');
+          readonly.className = 'tag';
+          readonly.textContent = reg.model_managed ? '模型派生 · 只读' : (slave.model ? '只读 · 未实现或静态点' : '只读');
+          tdSet.appendChild(readonly);
         }
         tr.appendChild(tdSet);
 
@@ -324,10 +375,13 @@ function render(state) {
 async function refresh() {
   try {
     const r = await fetch('/api/state');
+    if (!r.ok) throw new Error(`状态请求失败（${r.status}）`);
     state = await r.json();
+    window.dispatchEvent(new CustomEvent('sim-state', { detail: state }));
     // 输入手动值期间保留输入框，避免轮询覆盖正在编辑的数值。
     if (!document.getElementById('buses').contains(document.activeElement)) render(state);
   } catch (e) {
+    window.dispatchEvent(new Event('sim-state-error'));
     console.error('获取状态失败', e);
   }
 }
@@ -399,8 +453,10 @@ refresh();
 setInterval(refresh, 2000);
 connectEvents();
 window.addEventListener('config-applied', refresh);
+window.addEventListener('model-applied', refresh);
 </script>
 <script type="module" src="/update-panel.mjs"></script>
 <script type="module" src="/config-editor.mjs"></script>
+<script type="module" src="/huawei-panel.mjs"></script>
 </body>
 </html>

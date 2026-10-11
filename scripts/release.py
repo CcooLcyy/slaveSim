@@ -26,6 +26,7 @@ SOURCE_DIR = Path(__file__).resolve().parents[1]
 PACKAGE_FILES = ("config.example.json", "README.md", "VERSION", "scripts/update.py", "scripts/versioning.py", "scripts/runtime.py",
                  "deploy/updater.runtime.example.json",
                  "doc/单容器网页更新.md",
+                 "doc/华为逆变器行为仿真.md",
                  "deploy/compose.release.yml", "deploy/slavesim-update.service",
                  "deploy/slavesim-update.timer")
 # 预设点表随发布包提供，部署时由用户选择，不替换已有运行配置。
@@ -52,6 +53,7 @@ INVERTER_FILES = (
     "configs/inverters/goodwe-single-mppt.json",
     "configs/inverters/goodwe-single-dual-mppt.json",
     "configs/inverters/huawei-v3.json",
+    "configs/inverters/huawei-v3-model.json",
 )
 PACKAGE_FILES += INVERTER_FILES
 HEX64 = re.compile(r"^[0-9a-f]{64}$")

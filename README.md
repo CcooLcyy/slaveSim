@@ -1,9 +1,11 @@
 # slaveSim
 
-Modbus RTU 从站模拟器。通过 PTY 创建虚拟串口设备，让下位机 `mskdsp` 以
+电网终端设备仿真工具，当前优先提供华为逆变器行为模型，并保留通用 Modbus RTU 点位模拟。通过 PTY 创建虚拟串口设备，让下位机 `mskdsp` 以
 `TRANSPORT_SERIAL` 方式直接连接，从而在没有真实设备的情况下复现现场环境。
 
 设计与验收标准见 [`doc/设计方案.md`](doc/设计方案.md)。
+
+华为设备行为仿真使用 [`configs/inverters/huawei-v3-model.json`](configs/inverters/huawei-v3-model.json)，不再独立造每个点的数值：功率命令会驱动实际P/Q、三相电流、模式反馈和电量积分。网页提供光照场景、控制入口和实际/目标功率曲线。首版范围、版本假设及启动模拟器进程的方法见 [`doc/华为逆变器行为仿真.md`](doc/华为逆变器行为仿真.md)。原 `huawei-v3.json` 仍是固定点位模板。
 
 ## 它解决什么问题
 

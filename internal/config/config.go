@@ -38,6 +38,8 @@ type Slave struct {
 	//   exception（默认）：返回异常码 0x02，对齐真实设备；
 	//   zero：返回 0，用于容忍下位机读整段区间。
 	UnmappedPolicy string `json:"unmapped_policy"`
+	// Model 可选地启用设备行为模型；为空时沿用原寄存器取值引擎。
+	Model *HuaweiModel `json:"model,omitempty"`
 	// Registers 是该从站对外提供的寄存器。
 	Registers []Register `json:"registers"`
 }
@@ -137,6 +139,10 @@ func (c *Config) Clone() *Config {
 		copyConfig.Buses[i].Slaves = make([]Slave, len(b.Slaves))
 		for j, s := range b.Slaves {
 			copyConfig.Buses[i].Slaves[j] = s
+			if s.Model != nil {
+				model := *s.Model
+				copyConfig.Buses[i].Slaves[j].Model = &model
+			}
 			copyConfig.Buses[i].Slaves[j].Registers = append([]Register(nil), s.Registers...)
 		}
 	}
@@ -260,6 +266,11 @@ func (c *Config) Validate() error {
 						return fmt.Errorf("总线 %s 站号 %d 地址 %d 在同一地址空间中重叠", b.Name, s.DeviceID, int(r.Address)+offset)
 					}
 					occupied[key] = true
+				}
+			}
+			if s.Model != nil {
+				if err := s.ValidateModel(); err != nil {
+					return fmt.Errorf("总线 %s 站号 %d 的行为模型: %w", b.Name, s.DeviceID, err)
 				}
 			}
 		}

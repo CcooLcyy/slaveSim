@@ -3,6 +3,9 @@ package sim
 import (
 	"encoding/binary"
 	"fmt"
+	"math"
+	"sort"
+	"sync"
 	"time"
 
 	"slavesim/internal/config"
@@ -70,8 +73,11 @@ type Slave struct {
 	ResponseDelay  time.Duration
 	UnmappedPolicy UnmappedPolicy
 
-	areas map[Area]map[uint16]slot
-	order []*Register
+	areas       map[Area]map[uint16]slot
+	order       []*Register
+	mu          sync.Mutex
+	model       *huaweiDevice
+	requestTime time.Time
 }
 
 // NewSlave 由配置构造一个从站。
@@ -136,6 +142,13 @@ func NewSlave(cfg config.Slave, now time.Time) (*Slave, error) {
 		}
 		s.order = append(s.order, reg)
 	}
+	if cfg.Model != nil {
+		// 模型配置在严格加载及应用时校验，直接构造从站也必须遵守相同约束。
+		if err := cfg.ValidateModel(); err != nil {
+			return nil, err
+		}
+		s.model = newHuaweiDevice(*cfg.Model, s.order, now)
+	}
 	return s, nil
 }
 
@@ -174,12 +187,30 @@ func (s *Slave) Find(function byte, address uint16) *Register {
 // 不响应的情形严格对齐真实设备：站号不符、CRC 校验失败、报文结构非法、
 // 以及广播地址（广播要执行写操作但不响应）。
 func (s *Slave) Handle(frame []byte) Result {
+	return s.HandleAt(frame, time.Now())
+}
+
+// HandleAt 使用可注入时钟，使设备演算与协议测试具有确定性。
+func (s *Slave) HandleAt(frame []byte, now time.Time) Result {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.requestTime = now
+	if s.model != nil {
+		s.model.advance(now)
+	}
 	if len(frame) < 4 {
 		return Result{DropReason: "报文长度不足，已丢弃"}
 	}
 
 	id := frame[0]
 	fn := frame[1]
+	// Handle也可被测试/接口直接调用，不能仅依赖总线定界器保护切片边界。
+	if (fn == 1 || fn == 3 || fn == 4 || fn == 5 || fn == 6) && len(frame) != 8 {
+		return Result{DropReason: "请求帧长度非法，已丢弃"}
+	}
+	if fn == 0x10 && (len(frame) < 9 || len(frame) != 9+int(frame[6])) {
+		return Result{DropReason: "写多寄存器帧长度非法，已丢弃"}
+	}
 
 	if !modbus.CheckCRC(frame) {
 		return Result{DropReason: "CRC 校验失败，已丢弃"}
@@ -240,7 +271,7 @@ func (s *Slave) readRegisters(frame []byte, id, fn byte) Result {
 
 	// 一次性算出每个寄存器当前的值，避免同一帧内跨越周期边界时前后不一致。
 	cache := map[*Register][]uint16{}
-	now := time.Now()
+	now := s.requestTime
 
 	regs := make([]uint16, 0, qty)
 	for i := uint16(0); i < qty; i++ {
@@ -287,7 +318,7 @@ func (s *Slave) readCoils(frame []byte, id byte) Result {
 	}
 
 	table := s.areas[AreaCoil]
-	now := time.Now()
+	now := s.requestTime
 
 	bitsOut := make([]byte, (qty+7)/8)
 	for i := uint16(0); i < qty; i++ {
@@ -321,6 +352,9 @@ func (s *Slave) readCoils(frame []byte, id byte) Result {
 // writeSingleCoil 处理 0x05 写单线圈。
 func (s *Slave) writeSingleCoil(frame []byte, id byte) Result {
 	fn := modbus.FuncWriteSingleCoil
+	if s.model != nil {
+		return s.exception(id, fn, modbus.ExcIllegalFunction)
+	}
 	addr := binary.BigEndian.Uint16(frame[2:4])
 	value := binary.BigEndian.Uint16(frame[4:6])
 
@@ -354,6 +388,19 @@ func (s *Slave) writeSingleRegister(frame []byte, id byte) Result {
 	sl, ok := s.areas[AreaHolding][addr]
 	if !ok || !sl.reg.Writable {
 		return s.exception(id, fn, modbus.ExcIllegalAddress)
+	}
+	if s.model != nil {
+		if sl.idx != 0 || sl.reg.RegCount() != 1 {
+			return s.exception(id, fn, modbus.ExcIllegalValue)
+		}
+		v := sl.reg.DecodeWrite([]uint16{value})
+		if err := s.model.validateCommand(addr, v); err != nil {
+			res := s.exception(id, fn, modbus.ExcIllegalValue)
+			res.Summary = err.Error()
+			return res
+		}
+		s.model.command(addr, v)
+		return Result{Response: modbus.AppendCRC(append([]byte{}, frame[:6]...)), Summary: fmt.Sprintf("华为设备控制: 地址=%d 原始值=%g，已更新设备控制目标", addr, v)}
 	}
 
 	sl.reg.Write(sl.reg.DecodeWrite([]uint16{value}))
@@ -405,7 +452,34 @@ func (s *Slave) writeMultipleRegisters(frame []byte, id byte) Result {
 		grouped[t.reg][t.idx] = raw
 	}
 
+	// 批量命令按地址排序；先整帧校验再应用，禁止部分生效。
+	ordered := make([]*Register, 0, len(grouped))
+	decoded := make(map[*Register]float64, len(grouped))
 	for reg, words := range grouped {
+		if s.model != nil && len(words) != reg.RegCount() {
+			return s.exception(id, fn, modbus.ExcIllegalValue)
+		}
+		vals := make([]uint16, reg.RegCount())
+		for idx, w := range words {
+			vals[idx] = w
+		}
+		decoded[reg] = reg.DecodeWrite(vals)
+		if s.model != nil {
+			if err := s.model.validateCommand(reg.Address, decoded[reg]); err != nil {
+				res := s.exception(id, fn, modbus.ExcIllegalValue)
+				res.Summary = err.Error()
+				return res
+			}
+		}
+		ordered = append(ordered, reg)
+	}
+	sort.Slice(ordered, func(i, j int) bool { return ordered[i].Address < ordered[j].Address })
+	for _, reg := range ordered {
+		if s.model != nil {
+			s.model.command(reg.Address, decoded[reg])
+			continue
+		}
+		words := grouped[reg]
 		n := reg.RegCount()
 		vals := make([]uint16, n)
 		for idx, w := range words {
@@ -421,6 +495,104 @@ func (s *Slave) writeMultipleRegisters(frame []byte, id byte) Result {
 		Response: modbus.AppendCRC(data),
 		Summary:  fmt.Sprintf("%s 起始地址=%d 数量=%d", modbus.FunctionText(fn), addr, qty),
 	}
+}
+
+// Step 独立于协议读取推进设备状态，返回需要记录的状态切换。
+func (s *Slave) Step(now time.Time) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.model == nil {
+		return ""
+	}
+	before := s.model.status()
+	s.model.advance(now)
+	after := s.model.status()
+	if before != after {
+		return fmt.Sprintf("华为设备状态变化: %s → %s，有功=%.3fkW 无功=%.3fkvar", before, after, s.model.p, s.model.q)
+	}
+	return ""
+}
+
+type SlaveSample struct {
+	Model    *HuaweiView
+	Values   []float64
+	Raw      [][]uint16
+	Writable []bool
+	Managed  []bool
+}
+
+// Sample 原子采集整台设备，避免网页和协议看到不同步的P/Q或原始值。
+func (s *Slave) Sample(now time.Time) SlaveSample {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.model != nil {
+		s.model.advance(now)
+	}
+	view := SlaveSample{}
+	if s.model != nil {
+		view.Model = s.model.view()
+	}
+	for _, reg := range s.order {
+		raw := reg.RawRegisters(now)
+		value := reg.Value(now)
+		managed := s.model != nil && reg.Function == 3 && s.model.managed(reg.Address)
+		if managed {
+			// 点表值与线上整数一致，避免网页显示模型计算的浮点尾数。
+			value = reg.DecodeWrite(raw)
+		}
+		view.Values = append(view.Values, value)
+		view.Raw = append(view.Raw, raw)
+		writable := reg.Writable
+		if s.model != nil {
+			writable = writable && reg.Function == 3 && s.model.supported(reg.Address)
+		}
+		view.Writable = append(view.Writable, writable)
+		view.Managed = append(view.Managed, managed)
+	}
+	return view
+}
+
+// SetPoint 统一网页和Modbus的模型命令语义；旧配置保留原有手动设置语义。
+func (s *Slave) SetPoint(fn byte, addr uint16, value float64, now time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	reg := s.Find(fn, addr)
+	if reg == nil {
+		return fmt.Errorf("未找到对应的寄存器")
+	}
+	if s.model == nil {
+		reg.SetManual(value)
+		return nil
+	}
+	if fn != 3 || reg.Address != addr || !reg.Writable {
+		return fmt.Errorf("模型遥测或非起始地址不能直接手改")
+	}
+	if err := s.model.validateCommand(addr, value); err != nil {
+		return err
+	}
+	s.model.advance(now)
+	s.model.command(addr, value)
+	return nil
+}
+
+// SetScenario 只改变环境输入，派生遥测由模型统一更新。
+func (s *Slave) SetScenario(scene config.HuaweiModel, now time.Time) error {
+	if err := scene.Validate(); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.model == nil {
+		return fmt.Errorf("该从站没有设备行为模型")
+	}
+	s.model.advance(now)
+	s.model.scene = scene
+	s.model.p = math.Min(s.model.p, s.model.availableP())
+	if s.model.p == 0 {
+		s.model.q = 0
+	}
+	s.model.publish()
+	return nil
 }
 
 func onOffText(on bool) string {

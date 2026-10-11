@@ -20,6 +20,8 @@ type Manager struct {
 	buses  []*Bus
 	log    *eventbus.Log
 	closed bool
+	stop   chan struct{}
+	wg     sync.WaitGroup
 }
 
 func NewManager(path string, cfg *config.Config, logs *eventbus.Log) (*Manager, error) {
@@ -27,11 +29,36 @@ func NewManager(path string, cfg *config.Config, logs *eventbus.Log) (*Manager, 
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	m := &Manager{path: path, log: logs}
+	m := &Manager{path: path, log: logs, stop: make(chan struct{})}
 	if err := m.apply(cfg, false); err != nil {
 		return nil, err
 	}
+	m.wg.Add(1)
+	go m.runModels()
 	return m, nil
+}
+
+// runModels 使用独立时钟驱动设备，即使总线等待回应或无人轮询也持续演算。
+func (m *Manager) runModels() {
+	defer m.wg.Done()
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-m.stop:
+			return
+		case now := <-ticker.C:
+			m.WithBuses(func(buses []*Bus) {
+				for _, b := range buses {
+					for _, sl := range b.Slaves() {
+						if summary := sl.Step(now); summary != "" {
+							m.log.Publish(eventbus.Event{Level: eventbus.LevelInfo, Bus: b.name(), DeviceID: int(sl.DeviceID), Summary: summary})
+						}
+					}
+				}
+			})
+		}
+	}
 }
 
 func (m *Manager) Config() *config.Config { m.mu.RLock(); defer m.mu.RUnlock(); return m.cfg.Clone() }
@@ -75,6 +102,9 @@ func (m *Manager) apply(cfg *config.Config, save bool) error {
 			if err != nil {
 				rollback()
 				return fmt.Errorf("总线 %s 构造从站 %d 失败: %w", bc.Name, sc.DeviceID, err)
+			}
+			if sc.Model != nil {
+				m.log.Publish(eventbus.Event{Level: eventbus.LevelInfo, Bus: bc.Name, DeviceID: int(sc.DeviceID), Summary: "华为逆变器行为模型已构造；控制将联动功率、电流、反馈和电量"})
 			}
 			slaves = append(slaves, sl)
 		}
@@ -149,11 +179,12 @@ func cleanupStaleLink(path string) error {
 
 func (m *Manager) Close() error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	if m.closed {
+		m.mu.Unlock()
 		return nil
 	}
 	m.closed = true
+	close(m.stop)
 	var first error
 	for _, b := range m.buses {
 		if err := b.Close(); err != nil {
@@ -163,5 +194,7 @@ func (m *Manager) Close() error {
 			}
 		}
 	}
+	m.mu.Unlock()
+	m.wg.Wait()
 	return first
 }

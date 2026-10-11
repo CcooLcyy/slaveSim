@@ -8,6 +8,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
 	"net/http"
 	"time"
@@ -23,20 +24,22 @@ var staticFiles embed.FS
 
 // RegisterView 是界面上的一个寄存器。
 type RegisterView struct {
-	Function string  `json:"function"`
-	Address  uint16  `json:"address"`
-	Type     string  `json:"type"`
-	Tag      string  `json:"tag"`
-	Unit     string  `json:"unit"`
-	Writable bool    `json:"writable"`
-	Value    float64 `json:"value"`
-	Raw      string  `json:"raw"`
+	Function     string  `json:"function"`
+	Address      uint16  `json:"address"`
+	Type         string  `json:"type"`
+	Tag          string  `json:"tag"`
+	Unit         string  `json:"unit"`
+	Writable     bool    `json:"writable"`
+	Value        float64 `json:"value"`
+	Raw          string  `json:"raw"`
+	ModelManaged bool    `json:"model_managed"`
 }
 
 // SlaveView 是界面上的一个从站。
 type SlaveView struct {
-	DeviceID  int            `json:"device_id"`
-	Registers []RegisterView `json:"registers"`
+	DeviceID  int             `json:"device_id"`
+	Registers []RegisterView  `json:"registers"`
+	Model     *sim.HuaweiView `json:"model,omitempty"`
 }
 
 // BusView 是界面上的一条总线。
@@ -70,6 +73,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/state", s.handleState)
 	mux.HandleFunc("/api/events", s.handleEvents)
 	mux.HandleFunc("/api/manual", s.handleManual)
+	mux.HandleFunc("/api/scenario", s.handleScenario)
 	mux.HandleFunc("/api/config", s.handleConfig)
 
 	sub, err := fs.Sub(staticFiles, "static")
@@ -94,22 +98,35 @@ func (s *Server) Snapshot() State {
 				SlavePath: b.SlavePath(),
 			}
 			for _, sl := range slaves {
-				sv := SlaveView{DeviceID: int(sl.DeviceID)}
-				for _, reg := range sl.Registers() {
-					raw := reg.RawRegisters(now)
+				sample := sl.Sample(now)
+				sv := SlaveView{DeviceID: int(sl.DeviceID), Model: sample.Model}
+				for i, reg := range sl.Registers() {
+					raw := sample.Raw[i]
+					tag, unit := reg.Tag, reg.Unit
+					if sample.Model != nil {
+						if reg.Address == 35301 && sample.Model.ActiveCommand != 40125 {
+							tag = "有功调节值_固定值模式 [raw; gain=1000]"
+							unit = "0.001 kW"
+						}
+						if reg.Address == 35305 && sample.Model.ReactiveCommand == 40123 {
+							tag = "无功调节值_Q/S模式 [raw; gain=1000; 有符号32位补码]"
+							unit = "0.001 比值"
+						}
+					}
 					bytesOut := make([]byte, 0, len(raw)*2)
 					for _, v := range raw {
 						bytesOut = append(bytesOut, byte(v>>8), byte(v))
 					}
 					sv.Registers = append(sv.Registers, RegisterView{
-						Function: fmt.Sprintf("0x%02X", reg.Function),
-						Address:  reg.Address,
-						Type:     reg.Type.String(),
-						Tag:      reg.Tag,
-						Unit:     reg.Unit,
-						Writable: reg.Writable,
-						Value:    reg.Value(now),
-						Raw:      modbus.Hex(bytesOut),
+						Function:     fmt.Sprintf("0x%02X", reg.Function),
+						Address:      reg.Address,
+						Type:         reg.Type.String(),
+						Tag:          tag,
+						Unit:         unit,
+						Writable:     sample.Writable[i],
+						Value:        sample.Values[i],
+						ModelManaged: sample.Managed[i],
+						Raw:          modbus.Hex(bytesOut),
 					})
 				}
 				bv.Slaves = append(bv.Slaves, sv)
@@ -163,7 +180,7 @@ func (s *Server) handleManual(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req manualRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeRequest(w, r, &req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("请求体解析失败: %v", err)})
 		return
 	}
@@ -189,7 +206,10 @@ func (s *Server) handleManual(w http.ResponseWriter, r *http.Request) {
 					writeJSON(w, http.StatusNotFound, map[string]string{"error": "未找到对应的寄存器"})
 					return
 				}
-				reg.SetManual(req.Value)
+				if err := sl.SetPoint(fn, req.Address, req.Value, time.Now()); err != nil {
+					writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+					return
+				}
 				s.log.Publish(eventbus.Event{
 					Level:   eventbus.LevelInfo,
 					Bus:     name,
@@ -201,6 +221,65 @@ func (s *Server) handleManual(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "未找到对应的总线或从站"})
 	})
+}
+
+// decodeRequest 拒绝超大、未知字段与尾随对象，避免控制请求含义不明确。
+func decodeRequest(w http.ResponseWriter, r *http.Request, target any) error {
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(target); err != nil {
+		return err
+	}
+	var extra any
+	if err := dec.Decode(&extra); err != io.EOF {
+		return fmt.Errorf("请求末尾包含多余内容")
+	}
+	return nil
+}
+
+// handleScenario 设置设备环境输入；不允许通过此接口直接覆盖派生遥测。
+func (s *Server) handleScenario(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "只支持POST"})
+		return
+	}
+	var req struct {
+		Bus      string             `json:"bus"`
+		DeviceID int                `json:"device_id"`
+		Scenario config.HuaweiModel `json:"scenario"`
+	}
+	if err := decodeRequest(w, r, &req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("请求体解析失败: %v", err)})
+		return
+	}
+	if req.Scenario.Kind == "" {
+		req.Scenario.Kind = "huawei_v3"
+	}
+	found := false
+	s.manager.WithBuses(func(buses []*sim.Bus) {
+		for _, b := range buses {
+			name, slaves := b.Info()
+			if name != req.Bus {
+				continue
+			}
+			for _, sl := range slaves {
+				if int(sl.DeviceID) != req.DeviceID {
+					continue
+				}
+				found = true
+				if err := sl.SetScenario(req.Scenario, time.Now()); err != nil {
+					writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+					return
+				}
+				s.log.Publish(eventbus.Event{Level: eventbus.LevelInfo, Bus: name, DeviceID: req.DeviceID, Summary: fmt.Sprintf("华为仿真场景已更新: 可用DC=%.3fkW 线电压=%.1fV 频率=%.2fHz 温度=%.1f℃ 效率=%.3f", req.Scenario.DCAvailableKW, req.Scenario.GridLineVoltageV, req.Scenario.GridFrequencyHZ, req.Scenario.AmbientTemperatureC, req.Scenario.Efficiency)})
+				writeJSON(w, http.StatusOK, map[string]string{"result": "ok"})
+				return
+			}
+		}
+	})
+	if !found {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "未找到对应的设备模型"})
+	}
 }
 
 func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {

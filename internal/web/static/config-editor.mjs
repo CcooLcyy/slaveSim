@@ -1,4 +1,5 @@
 import { newBus, newSlave, newRegister, normalizeConfig, validateDraft, sourceFields } from './config-model.mjs';
+import { scenarioFields, scenarioRequest } from './huawei-view.mjs';
 
 const root = document.getElementById('config-buses');
 const status = document.getElementById('config-status');
@@ -71,6 +72,22 @@ const choices = items => items.map(item => Array.isArray(item) ? item : [item, i
 const sourceLabels = { const: '固定值', manual: '手动初值', sine: '正弦', ramp: '斜坡', random: '随机' };
 const parameterLabels = { value: '原始值', base: '基值', amplitude: '振幅', period_ms: '周期 / 更新间隔（毫秒）', min: '最小值', max: '最大值' };
 
+function modelEditor(parent, slave) {
+  if (!slave.model) return;
+  const section = element('section', 'model-editor');
+  section.append(element('h5', '', '华为逆变器仿真 · 模型初始参数'));
+  if (slave.model.kind === 'huawei_v3') {
+    const fields = element('div', 'config-grid');
+    for (const parameter of scenarioFields) {
+      field(fields, slave.model, parameter.key, parameter.label, { numeric: true, min: parameter.min, max: parameter.max, required: true });
+    }
+    section.append(fields, element('p', '', '这些参数随配置保存，运行页“应用场景”只临时修改当前运行。保存并应用配置会重建模型、重置临时命令及运行电量到模板初值；无模型的旧从站保持原数值来源规则。'));
+  } else {
+    section.append(element('p', '', `当前页面不支持模型 ${slave.model.kind || '未指定类型'} 的参数编辑`));
+  }
+  parent.append(section);
+}
+
 function registerEditor(parent, slave, reg, index) {
   const details = element('details', 'register-editor');
   details.open = expandedRegisters.get(reg) ?? slave.registers.length <= 3;
@@ -124,6 +141,7 @@ function renderEditor() {
       field(stationFields, slave, 'response_delay_ms', '响应延迟（毫秒）', { numeric: true, integer: true, min: 0, max: 60000, required: true });
       field(stationFields, slave, 'unmapped_policy', '未配置地址', { choices: choices([['exception', '返回异常码 0x02'], ['zero', '返回 0']]) });
       station.append(stationHeading, stationFields);
+      modelEditor(station, slave);
       for (const [index, reg] of slave.registers.entries()) registerEditor(station, slave, reg, index);
       station.append(action('新增寄存器', () => {
         const reg = newRegister(slave.registers);
@@ -167,11 +185,16 @@ form.onsubmit = async event => {
   if (busy || !draft) return;
   const error = validateDraft(draft);
   if (error) { message(error, true); return; }
+  for (const bus of draft.buses) for (const slave of bus.slaves) {
+    if (slave.model?.kind !== 'huawei_v3') continue;
+    try { scenarioRequest({ bus: bus.name, device_id: slave.device_id }, slave.model); }
+    catch (error) { message(`总线 ${bus.name} / 站号 ${slave.device_id}：${error.message}`, true); return; }
+  }
   setBusy(true); message('正在保存并应用配置…');
   try {
     await readResponse(await fetch('/api/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(draft) }));
     dirty = false;
-    message('配置已保存并应用；已更新总线的临时手动值已重置');
+    message('配置已保存并应用；临时手动值已重置，行为模型按配置初值重建');
     console.info('多路 RS485 配置已保存并应用', { buses: draft.buses.length });
     window.dispatchEvent(new Event('config-applied'));
   } catch (error) {
