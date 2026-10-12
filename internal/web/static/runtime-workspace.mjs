@@ -1,4 +1,5 @@
 import { createHuaweiPanel } from './huawei-panel.mjs';
+import { copyText } from './clipboard.mjs';
 
 // 总线与设备节点长期保留，轮询只更新反馈，切换总线也保留未提交的输入。
 export function createRuntimeWorkspace(root, options = {}) {
@@ -42,9 +43,31 @@ export function createRuntimeWorkspace(root, options = {}) {
     const title = element('div'); title.append(element('span', 'section-eyebrow', '总线工作区'));
     entry.title = element('h2'); title.append(entry.title);
     entry.summary = element('span', 'bus-summary'); heading.append(title, entry.summary);
-    const connection = element('details', 'bus-connection');
-    entry.connectionTitle = element('summary'); entry.path = element('div', 'bus-path');
-    connection.append(entry.connectionTitle, entry.path);
+    const connection = element('div', 'bus-connection');
+    entry.paths = [];
+    const status = element('div', 'copy-path-status');
+    status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
+    for (const [key, label] of [['slave_path', '实际设备'], ['link_path', '固定配置路径']]) {
+      const row = element('div', 'bus-path-row');
+      const value = element('code', 'bus-path-value');
+      const button = element('button', 'copy-path', '复制'); button.type = 'button';
+      button.setAttribute('aria-label', `复制${label}`);
+      const item = { key, value, button, pending: false }; entry.paths.push(item);
+      button.onclick = async () => {
+        const path = entry.bus[key];
+        if (!path || item.pending) return;
+        item.pending = true; button.disabled = true; status.textContent = '正在复制…';
+        try {
+          await (options.copyText || copyText)(path, document);
+          status.textContent = `${label}已复制`;
+        } catch (error) {
+          status.textContent = '复制失败，请手动选择路径复制。';
+          console.error('复制串口路径失败', error);
+        } finally { item.pending = false; button.disabled = !entry.bus[key]; }
+      };
+      row.append(element('span', 'bus-path-label', label), value, button); connection.append(row);
+    }
+    connection.append(element('div', 'bus-path-hint', '下位机 serial.device 请填写固定配置路径，重启后无需修改。实际设备编号由系统动态分配，重启后可能变化。'), status);
     entry.body = element('div', 'bus-devices');
     entry.node.append(heading, connection, entry.body); content.append(entry.node);
     return entry;
@@ -135,8 +158,10 @@ export function createRuntimeWorkspace(root, options = {}) {
       const total = slaves.reduce((sum, slave) => sum + (slave.registers || []).length, 0);
       entry.count.textContent = `${slaves.length} 个设备 · ${total} 个寄存器`;
       entry.summary.textContent = `${slaves.length} 个设备 / ${total} 个寄存器`;
-      entry.connectionTitle.textContent = `串口连接 · ${bus.link_path || '未配置'}`;
-      entry.path.textContent = `下位机 serial.device = ${bus.link_path || '—'} → 实际设备 ${bus.slave_path || '—'}`;
+      for (const item of entry.paths) {
+        item.value.textContent = bus[item.key] || '未就绪';
+        item.button.disabled = item.pending || !bus[item.key];
+      }
       const ids = new Set(slaves.map(slave => slave.device_id));
       for (const [id, device] of entry.devices) if (!ids.has(id)) { device.node.remove(); entry.devices.delete(id); }
       for (const slave of slaves) {

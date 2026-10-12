@@ -56,6 +56,40 @@ function state(active = 50, second = '2026-10-11T10:00:00Z') {
   ] };
 }
 
+test('实际设备优先展示，复制按钮在刷新后复制最新设备和固定配置路径', async () => {
+  const copied = [];
+  const { root, workspace } = fixture({ copyText: async value => copied.push(value) });
+  workspace.update(state());
+  const connection = classes(busCard(root, 'Huawei-V3'), 'bus-connection')[0];
+  const rows = classes(connection, 'bus-path-row');
+  assert.ok(rows[0].children.some(node => node.textContent === '实际设备'));
+  assert.equal(classes(rows[0], 'bus-path-value')[0].textContent, '/dev/pts/1');
+  assert.equal(classes(rows[1], 'bus-path-value')[0].textContent, '/serial/huawei');
+  const buttons = classes(connection, 'copy-path');
+  await buttons[0].onclick(); await buttons[1].onclick();
+  const next = state(); next.buses[0].slave_path = '/dev/pts/12'; workspace.update(next);
+  assert.equal(classes(busCard(root, 'Huawei-V3'), 'bus-connection')[0], connection);
+  await buttons[0].onclick(); await buttons[1].onclick();
+  assert.deepEqual(copied, ['/dev/pts/1', '/serial/huawei', '/dev/pts/12', '/serial/huawei']);
+  assert.ok(classes(connection, 'bus-path-hint')[0].textContent.includes('serial.device'));
+  assert.equal(classes(connection, 'copy-path-status')[0].textContent, '固定配置路径已复制');
+});
+
+test('路径缺失时禁用复制，复制失败显示可手动复制的提示', async t => {
+  t.mock.method(console, 'error', () => {});
+  const { root, workspace } = fixture({ copyText: async () => { throw new Error('权限拒绝'); } });
+  workspace.update(state());
+  const connection = classes(busCard(root, 'Huawei-V3'), 'bus-connection')[0];
+  const buttons = classes(connection, 'copy-path');
+  await buttons[0].onclick();
+  assert.equal(buttons[0].disabled, false);
+  assert.ok(classes(connection, 'copy-path-status')[0].textContent.includes('请手动选择路径复制'));
+  const next = state(); next.buses[0].slave_path = ''; next.buses[0].link_path = '';
+  workspace.update(next);
+  const unavailable = classes(busCard(root, 'Huawei-V3'), 'copy-path');
+  assert.ok(unavailable.every(button => button.disabled));
+});
+
 test('两个总线分别关联自己的设备、模型和寄存器，同站号不跨总线混合', () => {
   const { root, workspace } = fixture(); workspace.update(state());
   const huawei = busCard(root, 'Huawei-V3'); const other = busCard(root, 'RS485-2');

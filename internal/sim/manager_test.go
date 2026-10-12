@@ -13,6 +13,60 @@ import (
 	"slavesim/internal/modbus"
 )
 
+// 模拟器重启并更换 PTY 编号后，同一固定路径应指向新设备。
+func TestManagerRestartKeepsFixedSerialPath(t *testing.T) {
+	dir := t.TempDir()
+	link := filepath.Join(dir, "tty0")
+	c := &config.Config{Buses: []config.Bus{{Name: "RS485-1", Link: link, Slaves: []config.Slave{{DeviceID: 1}}}}}
+	path := filepath.Join(dir, "config.json")
+	m, err := NewManager(path, c, eventbus.NewLog(16))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = m.Close() })
+	oldTarget, err := os.Readlink(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 保留旧从端描述符，确保重启时不能复用旧 PTY 编号。
+	oldDevice, err := os.OpenFile(link, os.O_RDWR, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer oldDevice.Close()
+	if err := m.Close(); err != nil {
+		t.Fatal(err)
+	}
+	restarted, err := NewManager(path, c, eventbus.NewLog(16))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer restarted.Close()
+	newTarget, err := os.Readlink(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if oldTarget == newTarget {
+		t.Fatal("重启验证未产生不同的 PTY 编号")
+	}
+	device, err := os.OpenFile(link, os.O_RDWR, 0)
+	if err != nil {
+		t.Fatalf("重启后无法通过固定路径打开串口: %v", err)
+	}
+	defer device.Close()
+	fixedInfo, err := device.Stat()
+	if err != nil {
+		t.Fatal(err)
+	}
+	actualInfo, err := os.Stat(newTarget)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !os.SameFile(fixedInfo, actualInfo) {
+		t.Fatal("固定路径没有指向重启后的实际设备")
+	}
+}
+
 func TestManagerRecoversOnlyMissingPTYLinks(t *testing.T) {
 	dir := t.TempDir()
 	link := filepath.Join(dir, "tty0")

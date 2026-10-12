@@ -30,9 +30,15 @@ nav[aria-label="页面切换"] button[aria-pressed=true] { color: var(--accent);
 .section-eyebrow { display: block; color: var(--muted); font-size: 11px; letter-spacing: .5px; margin-bottom: 6px; }
 .bus-heading h2 { margin: 0; font-size: 21px; letter-spacing: -.3px; overflow-wrap: anywhere; }
 .bus-summary { font-size: 12px; color: var(--muted); text-align: right; flex-shrink: 0; }
-.bus-connection { margin: 0 22px 18px; border: 1px solid var(--border); border-radius: 6px; color: var(--muted); background: var(--surface-subtle); font-size: 11px; }
-.bus-connection summary { padding: 9px 12px; cursor: pointer; overflow-wrap: anywhere; }
-.bus-path { padding: 0 12px 10px; font-family: Consolas, monospace; overflow-wrap: anywhere; line-height: 1.6; }
+.bus-connection { margin: 0 22px 18px; padding: 12px; border: 1px solid var(--border); border-radius: 6px; color: var(--muted); background: var(--surface-subtle); font-size: 11px; }
+.bus-path-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 8px; }
+.bus-path-label { min-width: 72px; }
+.bus-path-value { color: var(--text); font-family: Consolas, monospace; overflow-wrap: anywhere; user-select: text; }
+.bus-path-row:first-child .bus-path-value { color: var(--info); font-size: 14px; font-weight: 600; }
+.copy-path { padding: 4px 10px; font-size: 11px; border: 1px solid var(--border); background: var(--surface); }
+.copy-path:disabled { opacity: .5; cursor: default; }
+.bus-path-hint, .copy-path-status { line-height: 1.6; overflow-wrap: anywhere; }
+.copy-path-status:empty { display: none; }
 .runtime-device { border-top: 1px solid var(--border); }
 .static-device-title { margin: 0; padding: 18px 22px; font-size: 15px; }
 .bus-is-empty .bus-devices::after { content: '此总线尚未配置设备，请在 RS485 配置中添加。'; display: block; padding: 18px 22px; border-top: 1px solid var(--border); color: var(--muted); }
