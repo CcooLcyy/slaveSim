@@ -1,0 +1,79 @@
+/* 各页面共用语义配色，切换主题不会重建表单或运行面板。 */
+:root {
+  color-scheme: light;
+  --bg: #f3f5f8;
+  --surface: #ffffff;
+  --surface-subtle: #f8fafc;
+  --text: #223047;
+  --text-secondary: #46566e;
+  --muted: #626f82;
+  --border: #e1e6ed;
+  --border-subtle: #edf0f5;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --on-accent: #ffffff;
+  --hover-bg: #f0f4fa;
+  --hover-border: #b7c7dd;
+  --info: #2157c1;
+  --info-bg: #edf3ff;
+  --info-border: #dce7ff;
+  --info-muted: #526e9b;
+  --success: #1b703b;
+  --success-bg: #eaf7ee;
+  --warning: #825911;
+  --warning-bg: #fff7e6;
+  --warning-border: #e8d7a5;
+  --warning-accent: #a87918;
+  --danger: #b42318;
+  --danger-bg: #fff0ee;
+  --trend-actual: #1f6feb;
+  --trend-target: #ba7c0e;
+  --log-bg: #111b2b;
+  --log-text: #c9d1d9;
+  --log-muted: #9aa7b7;
+  --log-rx: #79c0ff;
+  --log-tx: #7ee787;
+  --log-warning: #e3b341;
+  --log-error: #ff7b72;
+}
+/* 脚本尚未执行或不可用时也默认呈现深色。 */
+:root:not([data-theme="light"]) {
+  color-scheme: dark;
+  --bg: #111315;
+  --surface: #1b1e22;
+  --surface-subtle: #23272d;
+  --text: #e3eaf4;
+  --text-secondary: #bfccdd;
+  --muted: #a3b2c6;
+  --border: #3c424b;
+  --border-subtle: #30363e;
+  --accent: #87b4ff;
+  --accent-hover: #a5c7ff;
+  --on-accent: #10203a;
+  --hover-bg: #30363e;
+  --hover-border: #697686;
+  --info: #a6c7ff;
+  --info-bg: #223958;
+  --info-border: #3b5a83;
+  --info-muted: #b0c9ed;
+  --success: #89d9a5;
+  --success-bg: #1b3b2e;
+  --warning: #f0cf82;
+  --warning-bg: #3b321f;
+  --warning-border: #685735;
+  --warning-accent: #e3b95e;
+  --danger: #ffa49b;
+  --danger-bg: #472a30;
+  --trend-actual: #87b4ff;
+  --trend-target: #f0cf82;
+  --log-bg: #0d0f12;
+}
+input, select, textarea {
+  color: var(--text);
+  background: var(--surface);
+  accent-color: var(--accent);
+}
+input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }
+.theme-control { margin-left: auto; display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; white-space: nowrap; }
+.theme-control select { padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; font: inherit; }
+@media (max-width: 700px) { .theme-control { margin-left: 0; } }
