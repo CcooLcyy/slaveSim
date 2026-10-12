@@ -22,6 +22,26 @@ const find = (node, predicate) => [node, ...node.children.filter(child => typeof
 const all = node => [node, ...node.children.filter(child => typeof child === 'object').flatMap(all)];
 const input = (root, name) => find(root, node => node.name === name);
 
+test('大容量场景无100kW上限，光照滑块随设备能力与草稿扩展', async () => {
+  const calls = [];
+  const root = new Node('div', document);
+  const panel = createHuaweiPanel(root, { fetch: async (url, options) => { calls.push(JSON.parse(options.body)); return { ok: true, json: async () => ({}) }; } });
+  panel.update(state(245, 250, 275));
+  const dc = input(root, 'dc_available_kw');
+  const slider = find(root, node => node.type === 'range');
+  assert.equal(dc.max, undefined);
+  assert.equal(dc.value, '250');
+  assert.equal(Number(slider.max), 275);
+  assert.equal(Number(slider.value), 250);
+  dc.value = '400'; dc.oninput();
+  assert.equal(Number(slider.max), 400);
+  panel.update(state(100, 100, 110));
+  assert.equal(dc.value, '400');
+  assert.equal(Number(slider.max), 400);
+  await find(root, node => node.dataset.form === 'scenario').onsubmit({ preventDefault() {} });
+  assert.equal(calls[0].scenario.dc_available_kw, 400);
+});
+
 test('反馈刷新保留控制输入DOM与场景草稿，只更新未编辑的场景值', () => {
   const root = new Node('div', document);
   const panel = createHuaweiPanel(root);

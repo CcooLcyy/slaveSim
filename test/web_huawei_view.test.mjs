@@ -35,7 +35,7 @@ test('非法控制、空值和不能精确编码的数值在发送前拒绝', ()
 });
 
 test('固定有功按当前Pmax反馈校验大小容量边界，缺少或非法能力拒绝发送', () => {
-  for (const maximum of [11, 80, 100]) {
+  for (const maximum of [0.5, 11, 80, 100, 275]) {
     const sized = { ...device, registers: [{ address: 30075, value: maximum * 1000 }] };
     assert.equal(controlRequest(sized, 'fixed', maximum).value, maximum * 1000);
     assert.throws(() => controlRequest(sized, 'fixed', maximum + 0.001), /超出合法范围/);
@@ -74,7 +74,8 @@ test('有功趋势只记录服务端时间与实际/目标反馈，拒绝重复�
 
 test('场景提交包含全部五字段，验证范围并拒绝空输入', () => {
   assert.deepEqual(scenarioRequest(device, scenario), { bus: device.bus, device_id: 1, scenario });
-  const ranges = { dc_available_kw: [-0.1, 100.1], grid_line_voltage_v: [99, 1001], grid_frequency_hz: [39, 71], ambient_temperature_c: [-41, 81], efficiency: [0, 1.01] };
+  assert.equal(scenarioRequest(device, { ...scenario, dc_available_kw: 300 }).scenario.dc_available_kw, 300);
+  const ranges = { dc_available_kw: [-0.1, Infinity], grid_line_voltage_v: [99, 1001], grid_frequency_hz: [39, 71], ambient_temperature_c: [-41, 81], efficiency: [0, 1.01] };
   for (const [key, values] of Object.entries(ranges)) for (const value of [...values, '', ' ', NaN]) {
     assert.throws(() => scenarioRequest(device, { ...scenario, [key]: value }));
   }

@@ -20,12 +20,17 @@ func (m HuaweiModel) Validate() error {
 	if m.Kind != "huawei_v3" {
 		return fmt.Errorf("模型 kind %q 不受支持，只能是 huawei_v3", m.Kind)
 	}
+	if math.IsNaN(m.DCAvailableKW) || math.IsInf(m.DCAvailableKW, 0) {
+		return fmt.Errorf("dc_available_kw 必须是有限数值")
+	}
+	if m.DCAvailableKW < 0 {
+		return fmt.Errorf("dc_available_kw 不能小于 0")
+	}
 	for _, field := range []struct {
 		name            string
 		value, min, max float64
 		openMin         bool
 	}{
-		{"dc_available_kw", m.DCAvailableKW, 0, 100, false},
 		{"grid_line_voltage_v", m.GridLineVoltageV, 100, 1000, false},
 		{"grid_frequency_hz", m.GridFrequencyHZ, 40, 70, false},
 		{"ambient_temperature_c", m.AmbientTemperatureC, -40, 80, false},
@@ -118,10 +123,10 @@ func (s Slave) ValidateModel() error {
 		return fmt.Errorf("组串个数 30071 必须为 4")
 	}
 	pn, pmax, smax := values[30073], values[30075], values[30077]
-	if pn < 1000 || pmax < pn || smax < pmax || smax > 100000 {
-		return fmt.Errorf("首版功率能力必须满足 1 <= Pn <= Pmax <= Smax <= 100（kW/kVA）")
+	if pn <= 0 || pmax < pn || smax < pmax {
+		return fmt.Errorf("功率能力必须满足 0 < Pn <= Pmax <= Smax（kW/kVA）")
 	}
-	// 四路均分最大100kW直流功率时，80V下的312.5A仍可使用INT16及100倍率编码。
+	// PV 电压保留场景物理范围；大功率派生电流按协议类型饱和编码。
 	for _, address := range []uint16{32016, 32018, 32020, 32022} {
 		if values[address] < 800 || values[address] > 15000 {
 			return fmt.Errorf("PV电压初值 %d 必须在 800..15000 之间（80..1500V）", address)

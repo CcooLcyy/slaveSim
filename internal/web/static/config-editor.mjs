@@ -172,7 +172,7 @@ function modelEditor(parent, slave) {
     if (!draft) { draft = { kw: ratedCapacity(slave), pending: false }; capacityDrafts.set(slave, draft); }
     const controls = { registers: new Map() }; capacityControls.set(slave, controls);
     controls.rated = field(fields, draft, 'kw', '逆变器额定容量（kW）', {
-      numeric: true, min: 1, max: 100, step: '0.001', required: true,
+      numeric: true, min: 0.001, step: '0.001', required: true,
       afterInput: () => { draft.pending = true; },
       afterChange: () => { try { applyCapacity(slave); } catch (error) { message(error.message, true); } },
     });
@@ -181,7 +181,7 @@ function modelEditor(parent, slave) {
       const input = field(fields, slave.model, parameter.key, parameter.label, { numeric: true, min: parameter.min, max: parameter.max, required: true });
       if (parameter.key === 'dc_available_kw') controls.solar = input;
     }
-    section.append(element('p', '', '额定容量支持 1～100 kW，调整时同步缩放功率能力和相关初值。太阳可用直流功率默认等于额定容量；手动修改光照后保留自定义值。'));
+    section.append(element('p', '', '额定容量为正数，支持 0.001 kW 精度，调整时同步缩放功率能力和相关初值。太阳可用直流功率默认等于额定容量；手动修改光照后保留自定义值。'));
     section.append(fields, element('p', '', '这些参数随配置保存，运行页“应用场景”只临时修改当前运行。保存并应用配置会重建模型、重置临时命令及运行电量到模板初值；无模型的旧从站保持原数值来源规则。'));
   } else {
     section.append(element('p', '', `当前页面不支持模型 ${slave.model.kind || '未指定类型'} 的参数编辑`));

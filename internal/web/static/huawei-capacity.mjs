@@ -13,10 +13,19 @@ function capacityInput(input) {
     throw new Error('逆变器额定容量不能为空且必须是有限数字');
   }
   const capacity = Number(input);
-  if (capacity < 1 || capacity > 100) throw new Error('逆变器额定容量超出范围，请输入 1～100 kW');
+  if (capacity <= 0) throw new Error('逆变器额定容量超出合法范围，必须大于 0 kW');
   const watts = capacity * 1000;
   if (Math.abs(watts - Math.round(watts)) > 1e-7) throw new Error('逆变器额定容量精度过高，请按 0.001 kW 步长填写');
+  if (Math.round(watts) < 1) throw new Error('逆变器额定容量精度过高，请按 0.001 kW 步长填写');
   return Math.round(watts);
+}
+
+function validateEncoding(register, value) {
+  const [min, max] = register.type === 'INT32' ? [-2147483648, 2147483647]
+    : [0, register.type === 'UINT16' ? 65535 : 4294967295];
+  if (!Number.isInteger(value) || value < min || value > max) {
+    throw new Error(`寄存器 ${register.address} 初值超出 ${register.type} 编码范围，无法修改额定容量`);
+  }
 }
 
 function currentValues(slave) {
@@ -37,13 +46,14 @@ function currentValues(slave) {
     }
     const value = register.source.value;
     if (!Number.isFinite(value) || !Number.isInteger(value)) throw new Error(`寄存器 ${address} 初值必须是有限整数`);
+    validateEncoding(register, value);
     registers.set(address, register);
     values.set(address, value);
   }
   const read = address => values.get(address);
   const pn = read(30073), pmax = read(30075), smax = read(30077);
-  if (pn < 1000 || pmax < pn || smax < pmax || smax > 100000) {
-    throw new Error('现有功率能力必须满足 1 ≤ 额定容量 ≤ Pmax ≤ Smax ≤ 100（kW/kVA）');
+  if (pn <= 0 || pmax < pn || smax < pmax) {
+    throw new Error('现有功率能力必须满足 0 < 额定容量 ≤ Pmax ≤ Smax');
   }
   if (read(30079) <= 0 || read(30079) > smax || read(30081) >= 0 || -read(30081) > smax) {
     throw new Error('现有无功能力必须正馈入、负吸收，且幅值不能超过 Smax');
@@ -61,17 +71,18 @@ export function setRatedCapacity(slave, input) {
   const { registers, read } = currentValues(slave);
   const ratio = pn / read(30073);
   const scaled = address => Math.round(read(address) * ratio);
-  const pmax = Math.max(pn, Math.min(100000, scaled(30075)));
-  const smax = Math.max(pmax, Math.min(100000, scaled(30077)));
+  const pmax = Math.max(pn, scaled(30075));
+  const smax = Math.max(pmax, scaled(30077));
   const updates = new Map([
     [30073, pn], [30075, pmax], [30077, smax],
     [30079, Math.max(1, Math.min(smax, scaled(30079)))],
     [30081, Math.min(-1, Math.max(-smax, scaled(30081)))],
     [32078, Math.max(0, Math.min(pmax, scaled(32078)))],
     // 40120 每原始单位是100W；向能力范围内截断，不能四舍五入越过Pmax。
-    [40120, Math.max(0, Math.min(Math.floor(pmax / 100), scaled(40120)))],
+    [40120, Math.max(0, Math.min(65535, Math.floor(pmax / 100), scaled(40120)))],
     [40126, Math.max(0, Math.min(pmax, scaled(40126)))],
   ]);
+  for (const [address, value] of updates) validateEncoding(registers.get(address), value);
   const oldCapacity = read(30073) / 1000;
   const followDC = typeof slave.model?.dc_available_kw === 'number'
     && Math.abs(slave.model.dc_available_kw - oldCapacity) <= 1e-7;

@@ -40,16 +40,41 @@ test('修改按Pn比例联动能力和功率初值，按寄存器精度取整并
   assert.equal(slave.model.efficiency, 0.98);
 });
 
-test('100kW边界截断Pmax/Smax，Q与功率初值落在截断后的能力内', () => {
+test('超过100kW时能力和初值按比例缩放，不截断Pmax/Smax', () => {
   const slave = device();
   slave.registers.find(reg => reg.address === 30079).source.value = 60000;
   slave.registers.find(reg => reg.address === 30081).source.value = -60000;
   slave.registers.find(reg => reg.address === 32078).source.value = 55000;
   slave.registers.find(reg => reg.address === 40120).source.value = 550;
   slave.registers.find(reg => reg.address === 40126).source.value = 55000;
-  setRatedCapacity(slave, 100);
-  assert.deepEqual(values(slave), [100000, 100000, 100000, 100000, -100000, 100000, 1000, 100000]);
-  assert.equal(slave.model.dc_available_kw, 100);
+  setRatedCapacity(slave, 250);
+  assert.deepEqual(values(slave), [250000, 275000, 300000, 300000, -300000, 275000, 2750, 275000]);
+  assert.equal(slave.model.dc_available_kw, 250);
+  setRatedCapacity(slave, 500);
+  assert.equal(raw(slave, 30075), 550000);
+  assert.equal(raw(slave, 30077), 600000);
+});
+
+test('低于1kW的正容量允许保存，最小寄存器步长保持合法能力', () => {
+  for (const capacity of [0.999, 0.5, 0.001]) {
+    const slave = device();
+    assert.equal(setRatedCapacity(slave, capacity), capacity);
+    assert.equal(slave.model.dc_available_kw, capacity);
+    assert.ok(raw(slave, 30075) >= raw(slave, 30073));
+    assert.ok(raw(slave, 30077) >= raw(slave, 30075));
+    assert.ok(raw(slave, 30079) > 0);
+    assert.ok(raw(slave, 30081) < 0);
+  }
+});
+
+test('容量联动保留协议编码范围，旧UINT16命令饱和且溢出原子拒绝', () => {
+  const slave = device();
+  setRatedCapacity(slave, 10000);
+  assert.equal(raw(slave, 40120), 65535);
+  assert.equal(raw(slave, 40126), 8400200);
+  const before = structuredClone(slave);
+  assert.throws(() => setRatedCapacity(slave, 5000000), /寄存器.*编码范围/);
+  assert.deepEqual(slave, before);
 });
 
 test('1kW边界保留非零正负Q，粗步长固定有功不超过Pmax', () => {
@@ -70,7 +95,7 @@ test('1kW边界保留非零正负Q，粗步长固定有功不超过Pmax', () => 
 
 test('重复上下调整以当前Pn为比例基准，默认光照持续跟随', () => {
   const slave = device();
-  for (const capacity of [25, 75, 50, 1, 100, 25.123]) {
+  for (const capacity of [25, 75, 50, 0.5, 250, 25.123]) {
     const oldPn = raw(slave, 30073), oldQ = raw(slave, 30079);
     setRatedCapacity(slave, capacity);
     assert.equal(ratedCapacity(slave), capacity);
@@ -90,7 +115,7 @@ test('默认直流输入容差内跟随，用户自定义直流输入保留', ()
 });
 
 test('空值、越界、非有限数值与超出0.001精度的输入均以中文错误原子拒绝', () => {
-  for (const input of ['', ' ', null, undefined, false, [], {}, NaN, Infinity, -Infinity, 'bad', 0.999, 100.001, 12.3456]) {
+  for (const input of ['', ' ', null, undefined, false, [], {}, NaN, Infinity, -Infinity, 'bad', 0, -1, 12.3456]) {
     const slave = device(); const before = structuredClone(slave);
     assert.throws(() => setRatedCapacity(slave, input), /额定容量.*(数字|范围|精度)/);
     assert.deepEqual(slave, before);
@@ -104,7 +129,7 @@ test('缺失或非法现有能力与初值不会产生部分更新', () => {
     slave => { delete slave.registers[0].source; },
     slave => { slave.registers[0].source.value = 0; },
     slave => { slave.registers[1].source.value = 49999; },
-    slave => { slave.registers[2].source.value = 100001; },
+    slave => { slave.registers[2].source.value = 4294967296; },
     slave => { slave.registers[2].source.value = 54999; },
     slave => { slave.registers[3].source.value = 0; },
     slave => { slave.registers[4].source.value = 1; },

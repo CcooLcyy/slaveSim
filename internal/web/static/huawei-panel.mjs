@@ -116,13 +116,15 @@ export function createHuaweiPanel(root, options = {}) {
     const scenarioGrid = element('div', 'config-grid');
     for (const field of scenarioFields) {
       const label = element('label', 'config-field'); label.append(element('span', '', field.label));
-      const input = element('input'); input.type = 'number'; input.name = field.key; input.min = field.min; input.max = field.max; input.step = field.step;
+      const input = element('input'); input.type = 'number'; input.name = field.key; input.min = field.min;
+      if (field.max !== undefined) input.max = field.max;
+      input.step = field.step;
       input.value = String(device.model.scenario?.[field.key] ?? ''); input.required = true;
       input.oninput = () => {
         card.dirtyScenario = true;
         if (field.key === 'dc_available_kw') {
           card.solarValue.textContent = solarLabel(input.value);
-          if (input.value && Number.isFinite(Number(input.value))) slider.value = input.value;
+          updateSolarSlider(card);
         }
       };
       card.inputs[field.key] = input; label.append(input); scenarioGrid.append(label);
@@ -140,6 +142,14 @@ export function createHuaweiPanel(root, options = {}) {
     explanation.append(element('p', '', '当前版本按现有点表模拟4路PV、平衡三相。未实现参数只读；保存并应用配置会重建模型，重置临时命令及运行电量到模板初值。'));
     card.node.append(explanation);
     return card;
+  }
+  // 滑块范围随能力与当前草稿扩展，数值输入保留用户指定的直流功率。
+  function updateSolarSlider(card) {
+    const dc = Number(card.inputs.dc_available_kw.value);
+    let maximum = 0;
+    try { maximum = fixedActiveMaximum(card.device); } catch {}
+    card.slider.max = Math.max(100, maximum, Number.isFinite(dc) ? dc : 0);
+    if (Number.isFinite(dc)) card.slider.value = dc;
   }
   function update(state) {
     const devices = modelDevices(state);
@@ -168,9 +178,9 @@ export function createHuaweiPanel(root, options = {}) {
       // 控制卡不重建，草稿与反馈分开更新，轮询期间不会夺走焦点。
       if (!card.dirtyScenario && !card.pending) {
         for (const field of scenarioFields) card.inputs[field.key].value = String(device.model.scenario?.[field.key] ?? '');
-        card.slider.value = card.inputs.dc_available_kw.value;
         card.solarValue.textContent = `${Number(card.inputs.dc_available_kw.value).toFixed(2)} kW`;
       }
+      updateSolarSlider(card);
     }
   }
   function reset() {

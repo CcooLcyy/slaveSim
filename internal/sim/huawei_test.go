@@ -2,7 +2,9 @@ package sim
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"math"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -277,5 +279,76 @@ func TestHuaweiScenarioAndWireEncoding(t *testing.T) {
 	scene.Efficiency = 0
 	if err := sl.SetScenario(scene, now.Add(2*time.Second)); err == nil {
 		t.Fatal("非法场景应拒绝")
+	}
+}
+
+// 大于100kW的容量和场景仍按完整工程量演算；超出协议的PV电流饱和而非回绕。
+func TestHuaweiLargePowerAndTelemetrySaturation(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "configs", "inverters", "huawei-v3-model.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cfg config.Config
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		t.Fatal(err)
+	}
+	// 该用例只验证模型与编码，使用当前平台绝对路径，无需打开 PTY。
+	cfg.Buses[0].Link = filepath.Join(t.TempDir(), "tty0")
+	station := &cfg.Buses[0].Slaves[0]
+	for i := range station.Registers {
+		r := &station.Registers[i]
+		switch r.Address {
+		case 30073, 30075, 30077, 30079, 40126:
+			r.Source.Value = 500000
+		case 30081:
+			r.Source.Value = -500000
+		case 40120:
+			r.Source.Value = 5000
+		case 32016, 32018, 32020, 32022:
+			r.Source.Value = 800
+		}
+	}
+	station.Model.DCAvailableKW = 500
+	station.Model.Efficiency = 1
+	if err := cfg.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 10, 12, 1, 0, 0, 0, time.UTC)
+	sl, err := NewSlave(*station, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertPower := func(want float64) {
+		t.Helper()
+		snap := sl.Sample(now)
+		if snap.Model.ActiveKW != want {
+			t.Fatalf("模型输出应为 %gkW: %+v", want, snap.Model)
+		}
+		for _, address := range []uint16{32064, 32080} {
+			r := sl.Find(3, address)
+			if got := r.DecodeWrite(r.RawRegisters(now)); got != want*1000 {
+				t.Fatalf("地址%d完整功率被截断: %g", address, got)
+			}
+		}
+		for _, address := range []uint16{32017, 32019, 32021, 32023} {
+			r := sl.Find(3, address)
+			if got := r.DecodeWrite(r.RawRegisters(now)); got != math.MaxInt16 {
+				t.Fatalf("PV电流地址%d应饱和至INT16上限，实际%g", address, got)
+			}
+		}
+		for i, r := range sl.order {
+			if snap.Managed[i] && snap.Values[i] != r.DecodeWrite(snap.Raw[i]) {
+				t.Fatalf("地址%d的高功率快照与线上值不同", r.Address)
+			}
+		}
+	}
+	assertPower(500)
+	for _, dc := range []float64{1000, math.MaxFloat64} {
+		scene := sl.Sample(now).Model.Scenario
+		scene.DCAvailableKW = dc
+		if err := sl.SetScenario(scene, now); err != nil {
+			t.Fatalf("有限非负DC场景%g被拒绝: %v", dc, err)
+		}
+		assertPower(500)
 	}
 }

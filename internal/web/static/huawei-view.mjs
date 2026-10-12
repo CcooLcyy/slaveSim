@@ -1,6 +1,6 @@
 // 页面只做单位换算与展示；模型推进和控制效果由服务器决定。
 export const scenarioFields = [
-  { key: 'dc_available_kw', label: '太阳可用直流功率（kW）', min: 0, max: 100, step: 'any' },
+  { key: 'dc_available_kw', label: '太阳可用直流功率（kW）', min: 0, step: 'any' },
   { key: 'grid_line_voltage_v', label: '电网线电压（V）', min: 100, max: 1000, step: 'any' },
   { key: 'grid_frequency_hz', label: '电网频率（Hz）', min: 40, max: 70, step: 'any' },
   { key: 'ambient_temperature_c', label: '环境温度（℃）', min: -40, max: 80, step: 'any' },

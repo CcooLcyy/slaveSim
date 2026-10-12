@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -45,7 +46,6 @@ func TestHuaweiModelValidate(t *testing.T) {
 		min, max float64
 		openMin  bool
 	}{
-		{"dc_available_kw", func(m *HuaweiModel, v float64) { m.DCAvailableKW = v }, 0, 100, false},
 		{"grid_line_voltage_v", func(m *HuaweiModel, v float64) { m.GridLineVoltageV = v }, 100, 1000, false},
 		{"grid_frequency_hz", func(m *HuaweiModel, v float64) { m.GridFrequencyHZ = v }, 40, 70, false},
 		{"ambient_temperature_c", func(m *HuaweiModel, v float64) { m.AmbientTemperatureC = v }, -40, 80, false},
@@ -73,6 +73,20 @@ func TestHuaweiModelValidate(t *testing.T) {
 				}
 			}
 		})
+	}
+	for _, dc := range []float64{0, .5, 100, 500, math.MaxFloat64} {
+		m := huaweiTestModel()
+		m.DCAvailableKW = dc
+		if err := m.Validate(); err != nil {
+			t.Errorf("有限非负 DC 功率 %g 被拒绝: %v", dc, err)
+		}
+	}
+	for _, dc := range []float64{-1, math.NaN(), math.Inf(1), math.Inf(-1)} {
+		m := huaweiTestModel()
+		m.DCAvailableKW = dc
+		if err := m.Validate(); err == nil {
+			t.Errorf("非法 DC 功率 %g 被接受", dc)
+		}
 	}
 	for _, kind := range []string{"", "Huawei_v3", "other"} {
 		m := huaweiTestModel()
@@ -233,20 +247,20 @@ func TestHuaweiInvalidInitialValues(t *testing.T) {
 	}
 }
 
-// 首版能力与四路PV电压限制保证所有派生遥测都可以按协议类型编码。
+// 能力仍遵循寄存器编码范围和相互关系，PV 电压仍保留物理范围。
 func TestHuaweiProfileEncodingLimits(t *testing.T) {
 	for _, test := range []struct {
 		address uint16
 		value   float64
 	}{
-		{30073, 999}, {30077, 100001}, {30077, 4294967295},
+		{30073, 0}, {30077, 54999}, {30077, 4294967296},
 		{32016, 0}, {32018, -1}, {32020, 799}, {32022, 15001},
 	} {
 		t.Run(fmt.Sprintf("%d/%g", test.address, test.value), func(t *testing.T) {
 			cfg := huaweiTestConfig(t)
 			huaweiTestRegister(t, cfg, test.address).Source.Value = test.value
 			if err := cfg.Validate(); err == nil {
-				t.Fatal("会造成不一致或编码钳位的配置被接受")
+				t.Fatal("不满足能力关系或寄存器范围的配置被接受")
 			}
 			// 未启用模型的旧点表仍遵循原寄存器规则。
 			cfg.Buses[0].Slaves[0].Model = nil
@@ -265,7 +279,37 @@ func TestHuaweiProfileEncodingLimits(t *testing.T) {
 			huaweiTestRegister(t, cfg, address).Source.Value = voltage
 		}
 		if err := cfg.Validate(); err != nil {
-			t.Fatalf("首版能力/PV边界值被拒绝: %v", err)
+			t.Fatalf("合法能力/PV边界值被拒绝: %v", err)
 		}
+	}
+}
+
+// 额定容量不再有 1..100kW 的产品范围，编码允许的正数均可配置。
+func TestHuaweiPowerCapacityHasNoProductRange(t *testing.T) {
+	data, err := os.ReadFile("../../configs/inverters/huawei-v3-model.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, watts := range []float64{1, 500, 100001, 500000, math.MaxUint32} {
+		t.Run(fmt.Sprintf("%gW", watts), func(t *testing.T) {
+			cfg := &Config{}
+			if err := json.Unmarshal(data, cfg); err != nil {
+				t.Fatal(err)
+			}
+			// 容量测试使用当前平台的绝对路径，不依赖 Linux 串口目录。
+			cfg.Buses[0].Link = filepath.Join(t.TempDir(), "tty0")
+			for _, address := range []uint16{30073, 30075, 30077, 40126} {
+				huaweiTestRegister(t, cfg, address).Source.Value = watts
+			}
+			qmax := math.Min(watts, math.MaxInt32)
+			huaweiTestRegister(t, cfg, 30079).Source.Value = qmax
+			huaweiTestRegister(t, cfg, 30081).Source.Value = -qmax
+			huaweiTestRegister(t, cfg, 40120).Source.Value = math.Min(math.Floor(watts/100), math.MaxUint16)
+			huaweiTestRegister(t, cfg, 32078).Source.Value = 0
+			cfg.Buses[0].Slaves[0].Model.DCAvailableKW = watts / 1000
+			if err := cfg.Validate(); err != nil {
+				t.Fatalf("正额定容量 %gW 被拒绝: %v", watts, err)
+			}
+		})
 	}
 }
