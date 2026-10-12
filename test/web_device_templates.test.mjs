@@ -6,6 +6,19 @@ import { nextDeviceID, parseDeviceTemplates, createDeviceSlave, loadDeviceTempla
 const huawei = JSON.parse(readFileSync(new URL('../configs/inverters/huawei-v3-model.json', import.meta.url), 'utf8')).buses[0].slaves[0];
 const template = { id: 'huawei_v3', name: '华为逆变器（V3，行为仿真）', slave: huawei };
 
+test('新增华为设备的当日和累计电量从零开始，已有配置与目录初值保留', () => {
+  const configured = structuredClone(template);
+  for (const address of [32106, 32114]) configured.slave.registers.find(reg => reg.address === address).source.value = 12345;
+  const parsed = parseDeviceTemplates([configured])[0];
+  const added = createDeviceSlave([], parsed);
+  for (const address of [32106, 32114]) {
+    assert.equal(huawei.registers.find(reg => reg.address === address).source.value, 0, '行为模板应从零开始');
+    assert.equal(added.registers.find(reg => reg.address === address).source.value, 0, '新设备应从零开始');
+    assert.equal(parsed.slave.registers.find(reg => reg.address === address).source.value, 12345);
+    assert.equal(configured.slave.registers.find(reg => reg.address === address).source.value, 12345);
+  }
+});
+
 test('站号只在本总线内分配，选择1到247的最小空闲值，用满明确报错', () => {
   assert.equal(nextDeviceID([{ device_id: 1 }, { device_id: 3 }]), 2);
   assert.equal(nextDeviceID([]), 1);

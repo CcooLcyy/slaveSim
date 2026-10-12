@@ -642,7 +642,7 @@
               "access": "readonly",
               "source": {
                 "kind": "const",
-                "value": 12345678
+                "value": 0
               },
               "tag": "累计发电量 [raw; gain=100]",
               "unit": "0.01 kWh"
@@ -656,7 +656,7 @@
               "access": "readonly",
               "source": {
                 "kind": "const",
-                "value": 12345
+                "value": 0
               },
               "tag": "当日发电量 [raw; gain=100]",
               "unit": "0.01 kWh"

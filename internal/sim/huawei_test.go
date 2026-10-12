@@ -32,6 +32,51 @@ func modelWrite(sl *Slave, now time.Time, addr uint16, words ...uint16) Result {
 	return sl.HandleAt(modbus.AppendCRC(data), now)
 }
 
+// 验证默认当日电量和累计电量均为零，运行一分钟后按实际49kW有功累加。
+func TestHuaweiDefaultEnergyStartsAtZero(t *testing.T) {
+	now := time.Date(2026, 10, 12, 1, 0, 0, 0, time.UTC)
+	sl := modelSlave(t, now)
+	initial := sl.Sample(now)
+	if initial.Model.DayEnergyKWH != 0 || initial.Model.TotalEnergyKWH != 0 {
+		t.Fatalf("默认电量初值应为零: %+v", initial.Model)
+	}
+	for _, addr := range []uint16{32106, 32114} {
+		if sl.Find(3, addr).Value(now) != 0 {
+			t.Fatalf("电量寄存器%d初值应为零", addr)
+		}
+	}
+	v := sl.Sample(now.Add(time.Minute)).Model
+	if math.Abs(v.DayEnergyKWH-49.0/60) > 1e-5 || math.Abs(v.TotalEnergyKWH-49.0/60) > 1e-5 {
+		t.Fatalf("电量没有从零按实际功率累加: %+v", v)
+	}
+}
+
+// 验证显式配置的电量初值仍被采用，默认值修改不会清空已有历史初值。
+func TestHuaweiConfiguredEnergyInitialValues(t *testing.T) {
+	cfg, err := config.Load(filepath.Join("..", "..", "configs", "inverters", "huawei-v3-model.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	station := cfg.Buses[0].Slaves[0]
+	for i := range station.Registers {
+		switch station.Registers[i].Address {
+		case 32106:
+			station.Registers[i].Source.Value = 10000
+		case 32114:
+			station.Registers[i].Source.Value = 1200
+		}
+	}
+	now := time.Date(2026, 10, 12, 1, 0, 0, 0, time.UTC)
+	sl, err := NewSlave(station, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := sl.Sample(now).Model
+	if v.DayEnergyKWH != 12 || v.TotalEnergyKWH != 100 {
+		t.Fatalf("已配置的电量初值被覆盖: %+v", v)
+	}
+}
+
 func TestHuaweiSnapshotMatchesWireValues(t *testing.T) {
 	now := time.Date(2026, 10, 11, 1, 0, 0, 0, time.UTC)
 	sl := modelSlave(t, now)

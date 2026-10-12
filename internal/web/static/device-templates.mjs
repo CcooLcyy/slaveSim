@@ -44,6 +44,10 @@ export function createDeviceSlave(slaves, template = null) {
     if (!Number.isFinite(rated) || rated < 1 || rated > 100) throw new Error('华为设备预置缺少合法的逆变器额定容量');
     // 新设备按额定容量初始化光照，读取配置和目录时仍保留原始场景。
     slave.model.dc_available_kw = rated;
+    // 新设备没有历史发电量；只重置独立草稿，不改已有配置或目录模板。
+    for (const register of slave.registers) {
+      if (Number.parseInt(register.function, 16) === 3 && [32106, 32114].includes(register.address)) register.source.value = 0;
+    }
   }
   slave.device_id = device_id;
   return slave;
