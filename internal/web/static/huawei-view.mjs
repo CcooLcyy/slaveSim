@@ -12,8 +12,8 @@ export const controlFields = [
   { key: 'fixed', label: '固定有功（kW）', address: 40126, gain: 1000, min: 0, max: 55, step: '0.001', initial: 10 },
   { key: 'pf', label: '功率因数（-1＜PF≤-0.8 或 0.8≤PF≤1）', address: 40122, gain: 1000, min: -0.999, max: 1, step: '0.001', initial: 0.9 },
   { key: 'ratio', label: 'Q/S（-1～1）', address: 40123, gain: 1000, min: -1, max: 1, step: '0.001', initial: 0 },
-  { key: 'active_gradient', label: '有功梯度（%/s）', address: 42017, gain: 1000, min: 0.1, max: 1000, step: '0.001', initial: 10 },
-  { key: 'reactive_gradient', label: '无功梯度（%/s）', address: 42015, gain: 1000, min: 0.1, max: 1000, step: '0.001', initial: 10 },
+  { key: 'active_gradient', label: '有功梯度（%/s）', address: 42017, gain: 1000, min: 0.1, max: 1000, step: '0.001', initial: 100 },
+  { key: 'reactive_gradient', label: '无功梯度（%/s）', address: 42015, gain: 1000, min: 0.1, max: 1000, step: '0.001', initial: 100 },
 ];
 
 function number(value, label) {

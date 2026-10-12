@@ -26,6 +26,8 @@ test('反馈刷新保留控制输入DOM与场景草稿，只更新未编辑的�
   const root = new Node('div', document);
   const panel = createHuaweiPanel(root);
   panel.update(state());
+  assert.equal(input(root, 'active_gradient').value, '100');
+  assert.equal(input(root, 'reactive_gradient').value, '100');
   const percent = input(root, 'percent');
   percent.value = '37.5';
   const dc = input(root, 'dc_available_kw');

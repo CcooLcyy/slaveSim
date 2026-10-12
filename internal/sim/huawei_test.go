@@ -95,6 +95,10 @@ func TestHuaweiSnapshotMatchesWireValues(t *testing.T) {
 func TestHuaweiPowerControlAndPhysicalRelations(t *testing.T) {
 	now := time.Date(2026, 10, 11, 1, 0, 0, 0, time.UTC)
 	sl := modelSlave(t, now)
+	// 显式写入1%/秒，保留慢速斜坡的回归覆盖，不依赖默认快速梯度。
+	if err := sl.SetPoint(3, 42017, 1000, now); err != nil {
+		t.Fatal(err)
+	}
 	if res := modelWrite(sl, now, 40125, 500); res.IsException {
 		t.Fatal(res.Summary)
 	}
@@ -132,6 +136,36 @@ func TestHuaweiPowerControlAndPhysicalRelations(t *testing.T) {
 	}
 	if raw(35300) != 1 || raw(35301) != 10000 || raw(35303) != 40126 {
 		t.Fatal("固定功率模式反馈不正确")
+	}
+}
+
+// 验证默认有功和无功梯度均为100%/秒，分别按Pn与Smax在亚秒时间内抵达目标。
+func TestHuaweiDefaultGradientsAndSettlingTime(t *testing.T) {
+	now := time.Date(2026, 10, 12, 1, 0, 0, 0, time.UTC)
+	sl := modelSlave(t, now)
+	for _, addr := range []uint16{42017, 42015} {
+		if sl.Find(3, addr).Value(now) != 100000 {
+			t.Fatalf("梯度寄存器%d默认应为100%%/秒", addr)
+		}
+	}
+	if err := sl.SetPoint(3, 40125, 500, now); err != nil {
+		t.Fatal(err)
+	}
+	if v := sl.Sample(now.Add(200 * time.Millisecond)).Model; math.Abs(v.ActiveKW-39) > .001 {
+		t.Fatalf("按50kW/秒调节200ms后应为39kW: %+v", v)
+	}
+	if v := sl.Sample(now.Add(500 * time.Millisecond)).Model; math.Abs(v.ActiveKW-27.5) > .001 {
+		t.Fatalf("默认梯度500ms内应抵达27.5kW: %+v", v)
+	}
+	q := modelSlave(t, now)
+	if err := q.SetPoint(3, 40122, 900, now); err != nil {
+		t.Fatal(err)
+	}
+	if v := q.Sample(now.Add(100 * time.Millisecond)).Model; math.Abs(v.ReactiveKvar-5.5) > .001 {
+		t.Fatalf("按55kvar/秒调节100ms后应为5.5kvar: %+v", v)
+	}
+	if v := q.Sample(now.Add(500 * time.Millisecond)).Model; math.Abs(v.ReactiveKvar-v.TargetReactiveKvar) > .001 || math.Abs(v.PowerFactor-.9) > .001 {
+		t.Fatalf("默认无功梯度500ms内应抵达PF0.9: %+v", v)
 	}
 }
 

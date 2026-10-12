@@ -83,7 +83,7 @@ func TestHuaweiModelValidate(t *testing.T) {
 	}
 }
 
-// 行为模板电量默认归零，其他点表保持兼容，旧模板无模型且Clone不共享模型指针。
+// 行为模板电量归零且采用快速梯度，其他点表保持兼容，Clone不共享模型指针。
 func TestHuaweiTemplateAndClone(t *testing.T) {
 	old, err := Load("../../configs/inverters/huawei-v3.json")
 	if err != nil {
@@ -113,10 +113,12 @@ func TestHuaweiTemplateAndClone(t *testing.T) {
 		r := &expected.Buses[0].Slaves[0].Registers[i]
 		if r.Address == 32106 || r.Address == 32114 {
 			r.Source.Value = 0
+		} else if r.Address == 42015 || r.Address == 42017 {
+			r.Source.Value = 100000
 		}
 	}
 	if !reflect.DeepEqual(expected, modeled) {
-		t.Fatal("行为模板除电量初值外改动了原点表")
+		t.Fatal("行为模板除电量和梯度初值外改动了原点表")
 	}
 	raw, err := json.Marshal(old)
 	if err != nil {

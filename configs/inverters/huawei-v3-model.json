@@ -908,7 +908,7 @@
               "access": "readwrite",
               "source": {
                 "kind": "manual",
-                "value": 1000
+                "value": 100000
               },
               "tag": "无功功率变化梯度 [raw; gain=1000]",
               "unit": "0.001 %/s"
@@ -922,7 +922,7 @@
               "access": "readwrite",
               "source": {
                 "kind": "manual",
-                "value": 1000
+                "value": 100000
               },
               "tag": "有功功率变化梯度 [raw; gain=1000]",
               "unit": "0.001 %/s"
