@@ -13,11 +13,11 @@ class Node {
   remove() { this.parent.children = this.parent.children.filter(child => child !== this); }
 }
 const document = { createElement: tag => new Node(tag, document), createElementNS: (namespace, tag) => new Node(tag, document) };
-const state = (active = 50, dc = 51.02) => ({ buses: [{ name: 'Huawei-V3', slaves: [{ device_id: 1, model: {
+const state = (active = 50, dc = 51.02, maximum = 55) => ({ buses: [{ name: 'Huawei-V3', slaves: [{ device_id: 1, model: {
   kind: 'huawei_v3', active_kw: active, target_active_kw: active, reactive_kvar: 0, target_reactive_kvar: 0, power_factor: 1,
   day_energy_kwh: 0, total_energy_kwh: 54321, status: '并网', active_command: 40125, reactive_command: 40122,
   scenario: { dc_available_kw: dc, grid_line_voltage_v: 400, grid_frequency_hz: 50, ambient_temperature_c: 25, efficiency: 0.98 },
-}, registers: [] }] }] });
+}, registers: [{ address: 30075, value: maximum * 1000 }] }] }] });
 const find = (node, predicate) => [node, ...node.children.filter(child => typeof child === 'object').flatMap(child => all(child))].find(predicate);
 const all = node => [node, ...node.children.filter(child => typeof child === 'object').flatMap(all)];
 const input = (root, name) => find(root, node => node.name === name);
@@ -36,6 +36,28 @@ test('反馈刷新保留控制输入DOM与场景草稿，只更新未编辑的�
   assert.equal(dc.value, '12');
   assert.ok(all(root).some(node => node.textContent === '25.00 kW'));
   assert.equal(input(root, 'grid_frequency_hz').value, '50');
+});
+
+test('固定有功输入随反馈Pmax刷新范围，保留DOM与草稿并按最新能力提交', async () => {
+  const calls = [];
+  const root = new Node('div', document);
+  const panel = createHuaweiPanel(root, { fetch: async (url, options) => { calls.push(JSON.parse(options.body)); return { ok: true, json: async () => ({ ok: true }) }; } });
+  panel.update(state(49, 50, 80));
+  const fixed = input(root, 'fixed');
+  assert.equal(Number(fixed.max), 80);
+  fixed.value = '70';
+  panel.update(state(49, 50, 11));
+  assert.equal(input(root, 'fixed'), fixed);
+  assert.equal(fixed.value, '70');
+  assert.equal(Number(fixed.max), 11);
+  const write = find(root, node => node['aria-label'] === '写入固定有功（kW）');
+  await write.onclick();
+  assert.equal(calls.length, 0);
+  assert.equal(fixed.value, '70');
+  assert.ok(all(root).some(node => node.textContent.includes('超出合法范围')));
+  panel.update(state(49, 50, 80));
+  await write.onclick();
+  assert.equal(calls[0].value, 70000);
 });
 
 test('预设向manual写入、场景全量提交，成功后请求刷新反馈', async () => {

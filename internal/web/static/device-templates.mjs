@@ -1,5 +1,6 @@
 import { newSlave, normalizeConfig, validateDraft } from './config-model.mjs';
 import { scenarioRequest } from './huawei-view.mjs';
+import { ratedCapacity } from './huawei-capacity.mjs';
 
 export const customDeviceType = '__custom_modbus__';
 
@@ -38,6 +39,12 @@ export function parseDeviceTemplates(value) {
 export function createDeviceSlave(slaves, template = null) {
   const device_id = nextDeviceID(slaves);
   const slave = template ? normalizedTemplate(template).slave : newSlave(slaves);
+  if (slave.model?.kind === 'huawei_v3') {
+    const rated = ratedCapacity(slave);
+    if (!Number.isFinite(rated) || rated < 1 || rated > 100) throw new Error('华为设备预置缺少合法的逆变器额定容量');
+    // 新设备按额定容量初始化光照，读取配置和目录时仍保留原始场景。
+    slave.model.dc_available_kw = rated;
+  }
   slave.device_id = device_id;
   return slave;
 }

@@ -4,6 +4,7 @@ package sim
 
 import (
 	"encoding/binary"
+	"math"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -73,7 +74,7 @@ func TestHuaweiSeparateAddressSpaces(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if sl.Sample(now).Model.ActiveKW < 49.99 {
+	if math.Abs(sl.Sample(now).Model.ActiveKW-49) > .001 {
 		t.Fatal("输入区域覆盖了保持区域的额定能力")
 	}
 }

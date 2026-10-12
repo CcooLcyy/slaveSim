@@ -4,6 +4,28 @@ import (
 	"testing"
 )
 
+func TestHuaweiModelDefaultDCMatchesRatedCapacity(t *testing.T) {
+	catalog, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, preset := range catalog {
+		if preset.ID != "huawei_v3" {
+			continue
+		}
+		for _, register := range preset.Slave.Registers {
+			if register.Address == 30073 {
+				if got, want := preset.Slave.Model.DCAvailableKW, register.Source.Value/1000; got != want {
+					t.Fatalf("默认太阳直流功率为%g kW，应等于额定容量%g kW", got, want)
+				}
+				return
+			}
+		}
+		t.Fatal("华为行为模板缺少额定容量")
+	}
+	t.Fatal("缺少华为行为模板")
+}
+
 func TestCatalogIncludesEveryPointTableAndIndependentCopies(t *testing.T) {
 	entries, err := files.ReadDir(".")
 	if err != nil {

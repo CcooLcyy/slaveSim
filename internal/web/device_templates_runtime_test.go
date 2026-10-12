@@ -5,6 +5,7 @@ package web
 import (
 	"bytes"
 	"encoding/json"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -68,7 +69,7 @@ func TestAddPresetDevicesPreservesBusAndIndependentControls(t *testing.T) {
 	if state.Slaves[0].Registers[0].Value != 10 || state.Slaves[0].Model != nil || state.Slaves[3].Model != nil {
 		t.Fatal("自定义或静态点表被改成了行为模型")
 	}
-	if state.Slaves[1].Model.TargetActiveKW != 27.5 || state.Slaves[2].Model.TargetActiveKW < 49.99 {
+	if state.Slaves[1].Model.TargetActiveKW != 27.5 || math.Abs(state.Slaves[2].Model.TargetActiveKW-49) > .001 {
 		t.Fatal("多台华为模型的命令互相污染")
 	}
 	saved, err := config.Load(path)

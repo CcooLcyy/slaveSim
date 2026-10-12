@@ -27,11 +27,19 @@ export function modelDevices(state) {
     .map(slave => ({ ...slave, bus: bus.name, key: JSON.stringify([bus.name, slave.device_id]) })));
 }
 
+export function fixedActiveMaximum(device) {
+  const raw = (device.registers || []).find(register => register.address === 30075 && (register.function === undefined || Number.parseInt(register.function, 16) === 3))?.value;
+  const maximum = number(raw, '设备最大有功功率（Pmax）') / 1000;
+  if (maximum <= 0) throw new Error('设备最大有功功率（Pmax）必须大于0');
+  return maximum;
+}
+
 export function controlRequest(device, kind, input) {
   const field = controlFields.find(field => field.key === kind);
   if (!field) throw new Error('不支持的控制命令');
   const value = number(input, field.label);
-  if (value < field.min || value > field.max || (kind === 'pf' && (value === -1 || Math.abs(value) < 0.8))) throw new Error(`${field.label}超出合法范围`);
+  const maximum = kind === 'fixed' ? fixedActiveMaximum(device) : field.max;
+  if (value < field.min || value > maximum || (kind === 'pf' && (value === -1 || Math.abs(value) < 0.8))) throw new Error(`${field.label}超出合法范围`);
   const scaled = value * field.gain;
   if (Math.abs(scaled - Math.round(scaled)) > 1e-7) throw new Error(`${field.label}精度过高，请按输入步长填写`);
   return { bus: device.bus, device_id: device.device_id, function: '0x03', address: field.address, value: Math.round(scaled) };

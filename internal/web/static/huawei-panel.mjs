@@ -1,4 +1,4 @@
-import { modelDevices, getDeviceView, controlFields, scenarioFields, controlRequest, scenarioRequest, sendHuaweiRequest, appendPowerSample, powerTrendView } from './huawei-view.mjs';
+import { modelDevices, getDeviceView, controlFields, scenarioFields, controlRequest, scenarioRequest, sendHuaweiRequest, appendPowerSample, powerTrendView, fixedActiveMaximum } from './huawei-view.mjs';
 
 export function createHuaweiPanel(root, options = {}) {
   const document = root.ownerDocument;
@@ -15,7 +15,7 @@ export function createHuaweiPanel(root, options = {}) {
     return node;
   }
   function makeCard(device) {
-    const card = { device, dirtyScenario: false, pending: false, inputs: {}, history: [] };
+    const card = { device, dirtyScenario: false, pending: false, inputs: {}, controlInputs: {}, history: [] };
     card.node = element('section', 'card huawei-card');
     const heading = element('div', 'huawei-heading');
     const identity = element('div', 'device-identity');
@@ -96,6 +96,7 @@ export function createHuaweiPanel(root, options = {}) {
       const row = element('div', 'huawei-command'); const label = element('label', '', field.label);
       const input = element('input'); input.type = 'number'; input.name = field.key;
       input.min = field.min; input.max = field.max; input.step = field.step; input.value = String(field.initial);
+      card.controlInputs[field.key] = input;
       const write = button('写入', () => control(field.key, input.value), true);
       write.setAttribute('aria-label', `写入${field.label}`);
       label.append(input); row.append(label, write); controlSet.append(row);
@@ -149,6 +150,9 @@ export function createHuaweiPanel(root, options = {}) {
       let card = cards.get(device.key);
       if (!card) { card = makeCard(device); cards.set(device.key, card); root.append(card.node); }
       card.device = device;
+      // 固定有功范围随设备能力反馈更新，不重建DOM或改写用户输入。
+      try { card.controlInputs.fixed.max = fixedActiveMaximum(device); }
+      catch { card.controlInputs.fixed.max = 0; }
       const view = getDeviceView(device);
       card.status.textContent = view.status;
       card.status.dataset.state = view.status;

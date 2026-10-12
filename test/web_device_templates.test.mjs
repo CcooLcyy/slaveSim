@@ -42,6 +42,19 @@ test('多台预置设备的模型、寄存器、数值来源互不共享，也�
   assert.notEqual(first.registers[0], huawei.registers[0]);
 });
 
+test('新增华为设备以额定容量作为直流默认值，读取目录与已有配置保留自定义光照', () => {
+  const source = structuredClone(template);
+  source.slave.registers.find(register => register.address === 30073).source.value = 72500;
+  source.slave.model.dc_available_kw = 32;
+  const before = structuredClone(source);
+  const catalog = parseDeviceTemplates([source]);
+  assert.equal(catalog[0].slave.model.dc_available_kw, 32);
+  const added = createDeviceSlave([], catalog[0]);
+  assert.equal(added.model.dc_available_kw, 72.5);
+  assert.deepEqual(source, before);
+  assert.equal(catalog[0].slave.model.dc_available_kw, 32);
+});
+
 test('目录兼容行为与普通点表预置，名称及完整点表由服务端提供', () => {
   const staticSlave = structuredClone(huawei); delete staticSlave.model;
   const original = [template, { id: 'huawei_v3_static', name: '华为逆变器（V3，静态点表）', slave: staticSlave }];

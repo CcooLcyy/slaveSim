@@ -55,8 +55,8 @@ func TestHuaweiPowerControlAndPhysicalRelations(t *testing.T) {
 	}
 	sl.Step(now.Add(10 * time.Second))
 	view := sl.Sample(now.Add(10 * time.Second)).Model
-	if math.Abs(view.ActiveKW-45) > .001 {
-		t.Fatalf("10秒后按1%%/秒应为45kW: %+v", view)
+	if math.Abs(view.ActiveKW-44) > .001 {
+		t.Fatalf("初始49kW，10秒后按1%%/秒应为44kW: %+v", view)
 	}
 	sl.Step(now.Add(60 * time.Second))
 	snap := sl.Sample(now.Add(60 * time.Second))
@@ -134,7 +134,7 @@ func TestHuaweiReactiveControlsAndLimits(t *testing.T) {
 	if math.Abs(v.PowerFactor-.9) > .01 || v.ReactiveKvar <= 0 {
 		t.Fatalf("PF没有联动Q: %+v", v)
 	}
-	// -1000是合法Q/S命令，按INT16补码发送；能力圆限制到约-22.9kvar。
+	// -1000是合法Q/S命令，按INT16补码发送；49kW有功时能力圆限制到约-25kvar。
 	if res := modelWrite(sl, now.Add(time.Minute), 40123, 64536); res.IsException {
 		t.Fatal(res.Summary)
 	}
@@ -161,10 +161,10 @@ func TestHuaweiEnergyAndDayBoundary(t *testing.T) {
 	start := sl.Sample(now).Model.TotalEnergyKWH
 	sl.Step(now.Add(time.Minute))
 	v := sl.Sample(now.Add(time.Minute)).Model
-	if math.Abs(v.TotalEnergyKWH-start-50.0/60) > 1e-5 {
+	if math.Abs(v.TotalEnergyKWH-start-49.0/60) > 1e-5 {
 		t.Fatalf("累计电量积分错误: %+v", v)
 	}
-	if math.Abs(v.DayEnergyKWH-50.0/120) > 1e-5 {
+	if math.Abs(v.DayEnergyKWH-49.0/120) > 1e-5 {
 		t.Fatalf("跨日当日电量错误: %+v", v)
 	}
 }

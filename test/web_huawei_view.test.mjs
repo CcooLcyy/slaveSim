@@ -4,7 +4,7 @@ import { modelDevices, controlRequest, scenarioRequest, getDeviceView, sendHuawe
 import { normalizeConfig } from '../internal/web/static/config-model.mjs';
 
 const scenario = { dc_available_kw: 51.02, grid_line_voltage_v: 400, grid_frequency_hz: 50, ambient_temperature_c: 25, efficiency: 0.98 };
-const device = { bus: 'Huawei-V3', device_id: 1, model: { kind: 'huawei_v3', active_kw: 25, target_active_kw: 25, reactive_kvar: -12.1, target_reactive_kvar: -12.1, power_factor: -0.9, day_energy_kwh: 1.2, total_energy_kwh: 54321.2, status: '限电降额', active_command: 40125, reactive_command: 40122, scenario }, registers: [] };
+const device = { bus: 'Huawei-V3', device_id: 1, model: { kind: 'huawei_v3', active_kw: 25, target_active_kw: 25, reactive_kvar: -12.1, target_reactive_kvar: -12.1, power_factor: -0.9, day_energy_kwh: 1.2, total_energy_kwh: 54321.2, status: '限电降额', active_command: 40125, reactive_command: 40122, scenario }, registers: [{ address: 30075, value: 55000 }] };
 
 test('已有配置归一化保留模型五参数，草稿编辑不会改动原配置', () => {
   const model = { kind: 'huawei_v3', ...scenario };
@@ -32,6 +32,26 @@ test('非法控制、空值和不能精确编码的数值在发送前拒绝', ()
   for (const [kind, value] of [['percent', ''], ['percent', ' '], ['percent', 100.1], ['fixed', -1], ['fixed', 55.001], ['pf', -1], ['pf', 0.79], ['pf', -0.79], ['ratio', 1.1], ['ratio', 0.1234], ['active_gradient', 0], ['reactive_gradient', 1001], ['unknown', 1]]) {
     assert.throws(() => controlRequest(device, kind, value));
   }
+});
+
+test('固定有功按当前Pmax反馈校验大小容量边界，缺少或非法能力拒绝发送', () => {
+  for (const maximum of [11, 80, 100]) {
+    const sized = { ...device, registers: [{ address: 30075, value: maximum * 1000 }] };
+    assert.equal(controlRequest(sized, 'fixed', maximum).value, maximum * 1000);
+    assert.throws(() => controlRequest(sized, 'fixed', maximum + 0.001), /超出合法范围/);
+  }
+  for (const registers of [[], [{ address: 30075 }], [{ address: 30075, value: null }], [{ address: 30075, value: NaN }], [{ address: 30075, value: -1000 }]]) {
+    assert.throws(() => controlRequest({ ...device, registers }, 'fixed', 1), /最大有功功率/);
+  }
+});
+
+test('同地址的输入寄存器反馈不能覆盖保持区域的Pmax', () => {
+  const sized = { ...device, registers: [
+    { function: '0x04', address: 30075, value: 1000 },
+    { function: '0x03', address: 30075, value: 80000 },
+  ] };
+  assert.equal(controlRequest(sized, 'fixed', 80).value, 80000);
+  assert.throws(() => controlRequest({ ...device, registers: [sized.registers[0]] }, 'fixed', 1));
 });
 
 test('有功趋势只记录服务端时间与实际/目标反馈，拒绝重复和乱序采样', () => {

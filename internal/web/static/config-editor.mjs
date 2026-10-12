@@ -1,6 +1,7 @@
 import { newBus, newRegister, normalizeConfig, validateDraft, sourceFields } from './config-model.mjs';
 import { scenarioFields, scenarioRequest } from './huawei-view.mjs';
 import { customDeviceType, createDeviceSlave, loadDeviceTemplates } from './device-templates.mjs';
+import { ratedCapacity, setRatedCapacity } from './huawei-capacity.mjs';
 
 const root = document.getElementById('config-buses');
 const status = document.getElementById('config-status');
@@ -11,6 +12,8 @@ let busy = false;
 const expandedRegisters = new WeakMap();
 const registerGroups = new WeakMap();
 const selectedDeviceTypes = new WeakMap();
+const capacityDrafts = new WeakMap();
+const capacityControls = new WeakMap();
 let deviceTemplates = [];
 let templatesLoading = false;
 let templatesLoaded = false;
@@ -121,7 +124,7 @@ function field(parent, object, key, label, options = {}) {
   } else {
     input = element('input');
     input.type = options.numeric ? 'number' : 'text';
-    if (options.numeric) input.step = options.integer ? '1' : 'any';
+    if (options.numeric) input.step = options.step || (options.integer ? '1' : 'any');
     if (options.min !== undefined) input.min = options.min;
     if (options.max !== undefined) input.max = options.max;
     if (options.placeholder) input.placeholder = options.placeholder;
@@ -131,6 +134,7 @@ function field(parent, object, key, label, options = {}) {
   input.oninput = () => {
     object[key] = options.numeric ? (input.value === '' ? null : Number(input.value)) : input.value;
     changed();
+    options.afterInput?.();
   };
   input.onchange = () => {
     if (options.afterChange) options.afterChange();
@@ -144,15 +148,40 @@ const choices = items => items.map(item => Array.isArray(item) ? item : [item, i
 const sourceLabels = { const: '固定值', manual: '手动初值', sine: '正弦', ramp: '斜坡', random: '随机' };
 const parameterLabels = { value: '原始值', base: '基值', amplitude: '振幅', period_ms: '周期 / 更新间隔（毫秒）', min: '最小值', max: '最大值' };
 
+// 容量输入先保留草稿，失焦或保存时一次性换算，避免逐字符缩放造成取整误差。
+function applyCapacity(slave) {
+  const draft = capacityDrafts.get(slave);
+  if (!draft?.pending) return;
+  setRatedCapacity(slave, draft.kw);
+  draft.pending = false;
+  const controls = capacityControls.get(slave);
+  if (controls) {
+    controls.solar.value = slave.model.dc_available_kw;
+    for (const [reg, input] of controls.registers) input.value = reg.source.value;
+  }
+  console.info('逆变器额定容量已更新到配置草稿', { device_id: slave.device_id, rated_capacity_kw: ratedCapacity(slave), dc_available_kw: slave.model.dc_available_kw });
+}
+
 function modelEditor(parent, slave) {
   if (!slave.model) return;
   const section = element('section', 'model-editor');
   section.append(element('h5', '', '华为逆变器仿真 · 模型初始参数'));
   if (slave.model.kind === 'huawei_v3') {
     const fields = element('div', 'config-grid');
+    let draft = capacityDrafts.get(slave);
+    if (!draft) { draft = { kw: ratedCapacity(slave), pending: false }; capacityDrafts.set(slave, draft); }
+    const controls = { registers: new Map() }; capacityControls.set(slave, controls);
+    controls.rated = field(fields, draft, 'kw', '逆变器额定容量（kW）', {
+      numeric: true, min: 1, max: 100, step: '0.001', required: true,
+      afterInput: () => { draft.pending = true; },
+      afterChange: () => { try { applyCapacity(slave); } catch (error) { message(error.message, true); } },
+    });
+    controls.rated.name = 'rated_capacity_kw';
     for (const parameter of scenarioFields) {
-      field(fields, slave.model, parameter.key, parameter.label, { numeric: true, min: parameter.min, max: parameter.max, required: true });
+      const input = field(fields, slave.model, parameter.key, parameter.label, { numeric: true, min: parameter.min, max: parameter.max, required: true });
+      if (parameter.key === 'dc_available_kw') controls.solar = input;
     }
+    section.append(element('p', '', '额定容量支持 1～100 kW，调整时同步缩放功率能力和相关初值。太阳可用直流功率默认等于额定容量；手动修改光照后保留自定义值。'));
     section.append(fields, element('p', '', '这些参数随配置保存，运行页“应用场景”只临时修改当前运行。保存并应用配置会重建模型、重置临时命令及运行电量到模板初值；无模型的旧从站保持原数值来源规则。'));
   } else {
     section.append(element('p', '', `当前页面不支持模型 ${slave.model.kind || '未指定类型'} 的参数编辑`));
@@ -181,7 +210,15 @@ function registerEditor(parent, slave, reg, index) {
   const renderSource = () => {
     sourceParameters.replaceChildren();
     for (const key of sourceFields(reg.source.kind)) {
-      field(sourceParameters, reg.source, key, parameterLabels[key], { numeric: true, integer: key === 'period_ms', min: key === 'period_ms' ? 1 : undefined, required: true });
+      const input = field(sourceParameters, reg.source, key, parameterLabels[key], {
+        numeric: true, integer: key === 'period_ms', min: key === 'period_ms' ? 1 : undefined, required: true,
+        afterInput: () => {
+          if (key !== 'value' || reg.address !== 30073 || reg.function !== '0x03') return;
+          const controls = capacityControls.get(slave); const draft = capacityDrafts.get(slave);
+          if (controls && draft) { draft.kw = ratedCapacity(slave); draft.pending = false; controls.rated.value = draft.kw ?? ''; }
+        },
+      });
+      if (key === 'value') capacityControls.get(slave)?.registers.set(reg, input);
     }
   };
   field(fields, reg.source, 'kind', '数值来源', { choices: Object.entries(sourceLabels), afterChange: renderSource });
@@ -262,6 +299,10 @@ async function loadConfig() {
 form.onsubmit = async event => {
   event.preventDefault();
   if (busy || !draft) return;
+  for (const bus of draft.buses) for (const slave of bus.slaves) {
+    try { applyCapacity(slave); }
+    catch (error) { message(`总线 ${bus.name} / 站号 ${slave.device_id}：${error.message}`, true); return; }
+  }
   const error = validateDraft(draft);
   if (error) { message(error, true); return; }
   for (const bus of draft.buses) for (const slave of bus.slaves) {

@@ -10,7 +10,7 @@
           "unmapped_policy": "exception",
           "model": {
             "kind": "huawei_v3",
-            "dc_available_kw": 51.0204081632653,
+            "dc_available_kw": 50,
             "grid_line_voltage_v": 400,
             "grid_frequency_hz": 50,
             "ambient_temperature_c": 25,

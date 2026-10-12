@@ -11,7 +11,7 @@ import (
 )
 
 func huaweiTestModel() HuaweiModel {
-	return HuaweiModel{Kind: "huawei_v3", DCAvailableKW: 51.0204081632653, GridLineVoltageV: 400, GridFrequencyHZ: 50, AmbientTemperatureC: 25, Efficiency: .98}
+	return HuaweiModel{Kind: "huawei_v3", DCAvailableKW: 50, GridLineVoltageV: 400, GridFrequencyHZ: 50, AmbientTemperatureC: 25, Efficiency: .98}
 }
 
 func huaweiTestConfig(t *testing.T) *Config {
