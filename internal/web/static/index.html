@@ -90,6 +90,7 @@
   }
   button.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
   .logs {
+    overflow-anchor: none;
     height: 320px;
     overflow: auto;
     padding: 8px 14px;
@@ -297,6 +298,11 @@ let refreshSequence = 0;
 let acceptedSequence = 0;
 let stateEpoch = 0;
 const logsEl = document.getElementById('logs');
+const logLimit = 2000;
+const pendingLogs = new Array(logLimit);
+let logNext = 0;
+let logCount = 0;
+let logTimer = null;
 
 function fmtTime(iso) {
   const d = new Date(iso);
@@ -326,6 +332,24 @@ async function refresh() {
 
 function appendLog(e) {
   if (paused) return;
+  // 环形队列限制后台与突发报文的内存；接收事件时不读布局或改写DOM。
+  pendingLogs[logNext] = e;
+  logNext = (logNext + 1) % logLimit;
+  logCount = Math.min(logCount + 1, logLimit);
+  scheduleLogs();
+}
+
+function scheduleLogs() {
+  if (paused || document.hidden || !logCount || logTimer !== null) return;
+  logTimer = setTimeout(flushLogs, 100);
+}
+
+function discardPendingLogs() {
+  if (logTimer !== null) clearTimeout(logTimer);
+  logTimer = null; logCount = 0; logNext = 0; pendingLogs.fill(undefined);
+}
+
+function logRow(e) {
   const div = document.createElement('div');
   div.className = 'row';
 
@@ -341,13 +365,31 @@ function appendLog(e) {
   const summary = document.createElement('span');
   summary.className = 't'; summary.textContent = e.summary || '';
   div.append(timestamp, ' ', direction, ` ${e.bus ? `总线=${e.bus} ` : ''}${device}${e.frame ? e.frame + ' ' : ''}`, summary);
+  return div;
+}
 
-  const atBottom = logsEl.scrollTop + logsEl.clientHeight >= logsEl.scrollHeight - 30;
-  logsEl.appendChild(div);
-  while (logsEl.childElementCount > 2000) {
+function flushLogs() {
+  logTimer = null;
+  if (paused || document.hidden || !logCount) return;
+  const fragment = document.createDocumentFragment();
+  const start = (logNext - logCount + logLimit) % logLimit;
+  const count = logCount;
+  for (let index = 0; index < count; index++) {
+    const slot = (start + index) % logLimit;
+    fragment.append(logRow(pendingLogs[slot])); pendingLogs[slot] = undefined;
+  }
+  logCount = 0;
+  // 每批次只计算一次裁剪和跟随位置，避免逐条报文反复强制同步布局。
+  const top = logsEl.scrollTop;
+  const height = logsEl.scrollHeight;
+  const atBottom = top + logsEl.clientHeight >= height - 30;
+  while (logsEl.childElementCount + count > logLimit) {
     logsEl.removeChild(logsEl.firstChild);
   }
+  const removedHeight = atBottom ? 0 : height - logsEl.scrollHeight;
+  logsEl.appendChild(fragment);
   if (atBottom) logsEl.scrollTop = logsEl.scrollHeight;
+  else logsEl.scrollTop = Math.max(0, top - removedHeight);
 }
 
 function connectEvents() {
@@ -359,9 +401,16 @@ function connectEvents() {
 
 document.getElementById('pause').onclick = (ev) => {
   paused = !paused;
+  if (paused) discardPendingLogs();
   ev.target.textContent = paused ? '继续' : '暂停';
 };
-document.getElementById('clear').onclick = () => { logsEl.innerHTML = ''; };
+document.getElementById('clear').onclick = () => { discardPendingLogs(); logsEl.innerHTML = ''; };
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    if (logTimer !== null) clearTimeout(logTimer);
+    logTimer = null;
+  } else scheduleLogs();
+});
 
 refresh();
 setInterval(refresh, 2000);

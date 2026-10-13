@@ -10,7 +10,7 @@ const settle = () => new Promise(resolve => setImmediate(resolve));
 
 function fixture() {
   const requests = []; const events = []; const listeners = new Map(); const nodes = new Map();
-  const document = { getElementById(id) {
+  const document = { addEventListener() {}, getElementById(id) {
     if (!nodes.has(id)) nodes.set(id, { textContent: '', innerHTML: '' });
     return nodes.get(id);
   } };
