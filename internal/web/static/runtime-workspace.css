@@ -44,7 +44,21 @@ nav[aria-label="页面切换"] button[aria-pressed=true] { color: var(--accent);
 .bus-is-empty .bus-devices::after { content: '此总线尚未配置设备，请在 RS485 配置中添加。'; display: block; padding: 18px 22px; border-top: 1px solid var(--border); color: var(--muted); }
 .runtime-empty { padding: 40px 24px; color: var(--muted); line-height: 1.6; }
 .device-model > .huawei-card { border: 0; border-radius: 0; }
-.huawei-heading { padding: 18px 22px 14px; border: 0; }
+.huawei-heading { padding: 18px 22px; border: 0; cursor: pointer; list-style: none; }
+.huawei-heading::-webkit-details-marker { display: none; }
+.huawei-heading:hover { background: var(--hover-bg); }
+.huawei-heading:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.huawei-heading .device-identity { margin-right: auto; min-width: 0; }
+.huawei-compact { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; }
+.huawei-compact-metric { display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap; font-size: 12px; font-variant-numeric: tabular-nums; }
+.huawei-compact-metric > span { color: var(--muted); font-size: 11px; }
+.huawei-compact-value { font-size: 14px; }
+.huawei-toggle { display: inline-flex; align-items: center; gap: 7px; color: var(--accent); font-size: 12px; white-space: nowrap; }
+.huawei-toggle::after { content: ''; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); margin-top: -3px; }
+.huawei-collapse-label { display: none; }
+.huawei-card[open] > .huawei-heading .huawei-expand-label { display: none; }
+.huawei-card[open] > .huawei-heading .huawei-collapse-label { display: inline; }
+.huawei-card[open] > .huawei-heading .huawei-toggle::after { transform: rotate(225deg); margin-top: 3px; }
 .device-identity h3 { font-size: 15px; margin: 0; }
 .huawei-status { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; }
 .huawei-status::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
@@ -103,6 +117,10 @@ nav[aria-label="页面切换"] button[aria-pressed=true] { color: var(--accent);
   header { padding: 14px 16px; } header .hint { font-size: 11px; } main { padding: 12px; gap: 14px; }
   .bus-heading { padding: 16px; align-items: start; } .bus-heading h2 { font-size: 18px; } .bus-summary { max-width: 130px; font-size: 11px; flex-shrink: 1; }
   .bus-connection { margin: 0 16px 14px; } .huawei-heading { padding: 16px; } .huawei-metrics { padding: 0 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .huawei-heading .device-identity { flex-basis: calc(100% - 85px); }
+  .huawei-heading .huawei-status { order: 1; }
+  .huawei-heading .huawei-compact { order: 2; flex: 1 1 auto; gap: 8px 14px; }
+  .huawei-heading .huawei-toggle { order: 3; margin-left: auto; }
   .huawei-body { padding: 16px; gap: 16px; } .huawei-feedback { display: block; } .huawei-controls { grid-template-columns: 1fr; }
   .huawei-explanation { padding: 0 16px 16px; } .runtime-registers > summary { padding: 14px 16px; } .log-heading { padding: 14px; }
 }

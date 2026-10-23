@@ -4,7 +4,7 @@ import { createHuaweiPanel } from '../internal/web/static/huawei-panel.mjs';
 
 // 使用最小DOM替身验证刷新与操作编排，不依赖浏览器布局实现。
 class Node {
-  constructor(tag, ownerDocument) { this.tagName = tag; this.ownerDocument = ownerDocument; this.children = []; this.dataset = {}; this.listeners = {}; this.value = ''; this.textContent = ''; }
+  constructor(tag, ownerDocument) { this.tagName = tag; this.ownerDocument = ownerDocument; this.children = []; this.dataset = {}; this.listeners = {}; this.value = ''; this.textContent = ''; this.open = false; }
   append(...nodes) { this.children.push(...nodes); for (const node of nodes) if (typeof node === 'object') node.parent = this; }
   replaceChildren(...nodes) { this.children = []; this.append(...nodes); }
   setAttribute(key, value) { this[key] = value; }
@@ -21,6 +21,73 @@ const state = (active = 50, dc = 51.02, maximum = 55) => ({ buses: [{ name: 'Hua
 const find = (node, predicate) => [node, ...node.children.filter(child => typeof child === 'object').flatMap(child => all(child))].find(predicate);
 const all = node => [node, ...node.children.filter(child => typeof child === 'object').flatMap(all)];
 const input = (root, name) => find(root, node => node.name === name);
+const hasClass = (node, name) => (node.className || '').split(' ').includes(name);
+const modelCard = root => find(root, node => hasClass(node, 'huawei-card'));
+const modelSummary = card => card.children.find(node => node.tagName === 'summary');
+const compactValues = summary => all(find(summary, node => hasClass(node, 'huawei-compact')))
+  .filter(node => hasClass(node, 'huawei-compact-value') || node.dataset.metric)
+  .map(node => node.textContent);
+
+test('行为模型默认收起，摘要保留设备身份、状态和实际P/Q/PF并持续刷新', () => {
+  const root = new Node('div', document);
+  const panel = createHuaweiPanel(root);
+  panel.update(state());
+  const card = modelCard(root);
+  assert.equal(card.tagName, 'details'); assert.equal(card.open, false);
+  const summary = modelSummary(card);
+  assert.ok(summary); assert.equal(card.children[0], summary);
+  assert.ok(find(summary, node => node.textContent.includes('站号 1')));
+  assert.ok(find(summary, node => node.textContent.includes('Huawei V3')));
+  assert.ok(find(summary, node => node.textContent === '并网'));
+  assert.deepEqual(compactValues(summary), ['50.00 kW', '0.00 kvar', '1.000']);
+  assert.equal(summary.onclick, undefined);
+  assert.ok(find(summary, node => hasClass(node, 'huawei-toggle')));
+  const next = state(25);
+  next.buses[0].slaves[0].model.reactive_kvar = -12.34;
+  next.buses[0].slaves[0].model.power_factor = -0.955;
+  panel.update(next);
+  assert.equal(modelCard(root), card); assert.equal(modelSummary(card), summary);
+  assert.equal(card.open, false);
+  assert.deepEqual(compactValues(summary), ['25.00 kW', '-12.34 kvar', '-0.955']);
+});
+
+test('收起和展开只改变模型可见性，不自动提交，展开后原控制和场景仍可使用', async () => {
+  const calls = [];
+  const root = new Node('div', document);
+  const panel = createHuaweiPanel(root, { fetch: async (url, options) => {
+    calls.push({ url, body: JSON.parse(options.body) }); return { ok: true, json: async () => ({ ok: true }) };
+  } });
+  panel.update(state());
+  const card = modelCard(root); assert.equal(card.tagName, 'details');
+  const percent = input(card, 'percent'); percent.value = '37.5';
+  const dc = input(card, 'dc_available_kw'); dc.value = '12'; dc.oninput();
+  panel.update(state(25, 40));
+  card.open = true; card.open = false; card.open = true;
+  assert.equal(calls.length, 0);
+  assert.equal(input(card, 'percent'), percent); assert.equal(percent.value, '37.5');
+  assert.equal(input(card, 'dc_available_kw'), dc); assert.equal(dc.value, '12');
+  await find(card, node => node['aria-label'] === '写入有功百分比（%）').onclick();
+  await find(card, node => node.dataset.form === 'scenario').onsubmit({ preventDefault() {} });
+  assert.equal(calls[0].url, '/api/manual'); assert.equal(calls[0].body.value, 375);
+  assert.equal(calls[1].url, '/api/scenario'); assert.equal(calls[1].body.scenario.dc_available_kw, 12);
+  assert.ok(calls.every(call => call.body.device_id === 1 && call.body.bus === 'Huawei-V3'));
+  assert.equal(card.open, true);
+});
+
+test('模型收起时连接中断仍在摘要提示，恢复反馈不改变收起状态', () => {
+  const root = new Node('div', document); const panel = createHuaweiPanel(root);
+  panel.update(state());
+  const card = modelCard(root); assert.equal(card.tagName, 'details');
+  const summary = modelSummary(card);
+  panel.setError();
+  assert.equal(card.open, false);
+  assert.ok(find(summary, node => node.textContent.includes('反馈可能过期')));
+  assert.deepEqual(compactValues(summary), ['50.00 kW', '0.00 kvar', '1.000']);
+  panel.update(state(20));
+  assert.equal(modelSummary(card), summary); assert.equal(card.open, false);
+  assert.ok(find(summary, node => node.textContent === '并网'));
+  assert.deepEqual(compactValues(summary), ['20.00 kW', '0.00 kvar', '1.000']);
+});
 
 test('大容量场景无100kW上限，光照滑块随设备能力与草稿扩展', async () => {
   const calls = [];
@@ -129,9 +196,15 @@ test('有功趋势由每次服务端state反馈采样，不会重建输入卡', 
   const root = new Node('div', document);
   const panel = createHuaweiPanel(root);
   panel.update({ ...state(50), now: '2026-10-11T10:00:00Z' });
+  const card = modelCard(root); card.open = true;
   const percent = input(root, 'percent');
   panel.update({ ...state(25), now: '2026-10-11T10:00:02Z' });
+  assert.equal(modelCard(root), card); assert.equal(card.open, true);
   assert.equal(input(root, 'percent'), percent);
   assert.equal(find(root, node => node.dataset.series === 'actual').points, '0.0,20.0 320.0,70.0');
   assert.equal(find(root, node => node.dataset.series === 'target').points, '0.0,20.0 320.0,70.0');
+  card.open = false;
+  panel.update({ ...state(20), now: '2026-10-11T10:00:04Z' });
+  assert.equal(modelCard(root), card); assert.equal(card.open, false);
+  assert.equal(find(root, node => node.dataset.series === 'actual').points, '0.0,20.0 160.0,70.0 320.0,80.0');
 });

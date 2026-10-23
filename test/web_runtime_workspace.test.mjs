@@ -6,7 +6,7 @@ import { createRuntimeWorkspace } from '../internal/web/static/runtime-workspace
 class Node {
   constructor(tag, ownerDocument) {
     this.tagName = tag; this.ownerDocument = ownerDocument; this.children = [];
-    this.dataset = {}; this.value = ''; this.textContent = ''; this.hidden = false;
+    this.dataset = {}; this.value = ''; this.textContent = ''; this.hidden = false; this.open = false;
   }
   append(...nodes) {
     this.children.push(...nodes);
@@ -25,6 +25,7 @@ const classes = (node, name) => all(node).filter(item => hasClass(item, name));
 const busCard = (root, name) => classes(root, 'bus-workspace').find(card => find(card, node => node.tagName === 'h2' && node.textContent === name));
 const busButton = (root, name) => classes(root, 'bus-choice').find(button => find(button, node => node.tagName === 'strong' && node.textContent === name));
 const device = (bus, id) => classes(bus, 'runtime-device').find(node => node.dataset.deviceId === String(id));
+const modelCard = entry => classes(entry, 'huawei-card')[0];
 const field = (root, name) => find(root, node => node.name === name);
 const manualInput = root => find(root, node => node.tagName === 'input' && node.type === 'text');
 const setButton = root => find(root, node => node.tagName === 'button' && node.textContent === '设置');
@@ -108,11 +109,37 @@ test('两个总线分别关联自己的设备、模型和寄存器，同站号�
   assert.equal(huawei.hidden, false); assert.equal(other.hidden, true);
 });
 
+test('每台设备的行为模型独立展开，收起轮询不发送控制，展开写入仍对应原站号', async () => {
+  const calls = [];
+  const { root, workspace } = fixture({ fetch: async (url, options) => {
+    calls.push({ url, body: JSON.parse(options.body) }); return { ok: true, json: async () => ({ ok: true }) };
+  } });
+  workspace.update(state());
+  const bus = busCard(root, 'Huawei-V3');
+  const first = modelCard(device(bus, 1)); const second = modelCard(device(bus, 2));
+  assert.equal(first.tagName, 'details'); assert.equal(second.tagName, 'details');
+  assert.equal(first.open, false); assert.equal(second.open, false);
+  first.open = true;
+  assert.equal(second.open, false);
+  second.open = true; first.open = false;
+  workspace.update(state(25, '2026-10-11T10:00:02Z'));
+  assert.equal(modelCard(device(bus, 1)), first); assert.equal(modelCard(device(bus, 2)), second);
+  assert.equal(first.open, false); assert.equal(second.open, true);
+  assert.equal(calls.length, 0);
+  await find(second, node => node.textContent === '50% 限功率').onclick();
+  assert.equal(calls.length, 1); assert.equal(calls[0].url, '/api/manual');
+  assert.equal(calls[0].body.bus, 'Huawei-V3'); assert.equal(calls[0].body.device_id, 2);
+  assert.equal(calls[0].body.value, 500);
+  assert.equal(first.open, false); assert.equal(second.open, true);
+});
+
 test('切换总线只改变可见性和选中状态，保留设备控制及场景草稿节点', () => {
   const selected = [];
   const { root, workspace } = fixture({ onSelect: name => selected.push(name) }); workspace.update(state());
   const huawei = busCard(root, 'Huawei-V3'); const other = busCard(root, 'RS485-2');
   const entry = device(huawei, 2); const percent = field(entry, 'percent'); const solar = field(entry, 'dc_available_kw');
+  const firstModel = modelCard(device(huawei, 1)); const secondModel = modelCard(entry);
+  secondModel.open = true;
   percent.value = '37.5'; solar.value = '12'; solar.oninput();
   busButton(root, 'RS485-2').onclick();
   assert.equal(huawei.hidden, true); assert.equal(other.hidden, false);
@@ -123,12 +150,15 @@ test('切换总线只改变可见性和选中状态，保留设备控制及场�
   assert.equal(busCard(root, 'Huawei-V3'), huawei);
   assert.equal(field(entry, 'percent'), percent); assert.equal(percent.value, '37.5');
   assert.equal(field(entry, 'dc_available_kw'), solar); assert.equal(solar.value, '12');
+  assert.equal(modelCard(entry), secondModel); assert.equal(secondModel.open, true);
+  assert.equal(modelCard(device(huawei, 1)), firstModel); assert.equal(firstModel.open, false);
   assert.equal(selected.at(-1), 'Huawei-V3');
 });
 
 test('轮询更新反馈和趋势，保留聚焦手动输入以及寄存器展开状态', () => {
   const { root, document, workspace } = fixture(); workspace.update(state());
   const entry = device(busCard(root, 'Huawei-V3'), 1);
+  const model = modelCard(entry); model.open = true;
   const registers = classes(entry, 'runtime-registers')[0]; registers.open = true;
   const input = manualInput(entry); input.value = '375'; document.activeElement = input;
   const percent = field(entry, 'percent');
@@ -136,6 +166,7 @@ test('轮询更新反馈和趋势，保留聚焦手动输入以及寄存器展�
   assert.equal(manualInput(entry), input); assert.equal(input.value, '375');
   assert.equal(classes(entry, 'runtime-registers')[0], registers); assert.equal(registers.open, true);
   assert.equal(field(entry, 'percent'), percent);
+  assert.equal(modelCard(entry), model); assert.equal(model.open, true);
   assert.ok(find(entry, node => node.textContent === '25.00 kW'));
   assert.ok(find(entry, node => node.textContent === '250'));
   assert.equal(find(entry, node => node.dataset.series === 'actual').points, '0.0,20.0 320.0,70.0');

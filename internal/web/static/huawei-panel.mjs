@@ -16,12 +16,25 @@ export function createHuaweiPanel(root, options = {}) {
   }
   function makeCard(device) {
     const card = { device, dirtyScenario: false, pending: false, inputs: {}, controlInputs: {}, history: [] };
-    card.node = element('section', 'card huawei-card');
-    const heading = element('div', 'huawei-heading');
+    // 原生折叠容器只改变显示，节点、草稿和反馈采样始终保留。
+    card.node = element('details', 'card huawei-card');
+    card.node.open = false;
+    const heading = element('summary', 'huawei-heading');
     const identity = element('div', 'device-identity');
     identity.append(element('span', 'section-eyebrow', `站号 ${device.device_id} · 行为模型`), element('h3', '', '华为逆变器 · Huawei V3'));
     heading.append(identity);
+    const compact = element('span', 'huawei-compact');
+    card.compact = {};
+    for (const [key, label, title] of [['active', 'P', '实际有功'], ['reactive', 'Q', '实际无功'], ['powerFactor', 'PF', '功率因数']]) {
+      const metric = element('span', 'huawei-compact-metric'); metric.title = title;
+      const value = element('strong', 'huawei-compact-value', '—'); value.dataset.metric = key;
+      metric.append(element('span', '', label), value); compact.append(metric); card.compact[key] = value;
+    }
+    heading.append(compact);
     card.status = element('span', 'huawei-status'); heading.append(card.status);
+    const toggle = element('span', 'huawei-toggle');
+    toggle.append(element('span', 'huawei-expand-label', '展开模型'), element('span', 'huawei-collapse-label', '收起模型'));
+    heading.append(toggle);
     card.node.append(heading);
     const body = element('div', 'huawei-body');
     const feedback = element('div', 'huawei-feedback');
@@ -166,6 +179,7 @@ export function createHuaweiPanel(root, options = {}) {
       const view = getDeviceView(device);
       card.status.textContent = view.status;
       card.status.dataset.state = view.status;
+      for (const [key, value] of Object.entries(card.compact)) value.textContent = view[key];
       for (const [key, value] of Object.entries(card.metrics)) value.textContent = view[key];
       card.commands.textContent = `当前有功命令：${view.activeCommand}　当前无功命令：${view.reactiveCommand}`;
       view.phases.forEach((phase, index) => { for (const [key, value] of Object.entries(phase)) card.phases[index][key].textContent = value; });
