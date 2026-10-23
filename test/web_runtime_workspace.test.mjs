@@ -99,14 +99,61 @@ test('两个总线分别关联自己的设备、模型和寄存器，同站号�
   assert.equal(classes(other, 'runtime-device').length, 1);
   for (const id of [1, 2]) {
     const entry = device(huawei, id);
+    const header = classes(entry, 'device-header')[0];
     assert.equal(classes(entry, 'huawei-card').length, 1);
-    assert.ok(find(classes(entry, 'huawei-card')[0], node => node.textContent.includes(`站号 ${id}`)));
-    assert.ok(find(entry, node => node.tagName === 'summary' && node.textContent.includes(`站号 ${id}`)));
+    assert.equal(entry.children[0], header);
+    assert.ok(find(header, node => node.textContent === `站号 ${id}`));
+    assert.ok(find(header, node => node.textContent.includes('Huawei V3')));
+    assert.equal(classes(header, 'huawei-compact').length, 1);
+    assert.equal(classes(header, 'huawei-status').length, 1);
+    assert.equal(classes(modelCard(entry), 'device-identity').length, 0);
+    assert.ok(find(modelCard(entry).children[0], node => node.textContent === '行为模型'));
     assert.equal(classes(entry, 'runtime-registers').length, 1);
+    assert.equal(classes(entry, 'runtime-registers')[0].children[0].textContent, '寄存器与手动设值 · 1 项');
+    assert.equal(classes(entry, 'runtime-registers')[0].open, false);
   }
   assert.equal(classes(other, 'huawei-card').length, 0);
   assert.ok(find(other, node => node.textContent === 'Modbus 设备 · 站号 1'));
   assert.equal(huawei.hidden, false); assert.equal(other.hidden, true);
+});
+
+test('共用设备标题在两个区域收起时刷新反馈和断线提示，不改变独立展开状态', () => {
+  const { root, workspace } = fixture(); workspace.update(state());
+  const entry = device(busCard(root, 'Huawei-V3'), 1);
+  const header = classes(entry, 'device-header')[0];
+  const model = modelCard(entry); const registers = classes(entry, 'runtime-registers')[0];
+  assert.equal(model.open, false); assert.equal(registers.open, false);
+  workspace.setError();
+  assert.ok(find(header, node => node.textContent.includes('反馈可能过期')));
+  workspace.update(state(25, '2026-10-11T10:00:02Z'));
+  assert.equal(classes(entry, 'device-header')[0], header);
+  assert.ok(find(header, node => node.textContent === '25.00 kW'));
+  assert.ok(find(header, node => node.textContent === '并网'));
+  assert.equal(model.open, false); assert.equal(registers.open, false);
+  registers.open = true;
+  assert.equal(model.open, false);
+  model.open = true; registers.open = false;
+  workspace.update(state(20, '2026-10-11T10:00:04Z'));
+  assert.equal(model.open, true); assert.equal(registers.open, false);
+});
+
+test('同站号切换普通设备和模型设备不会残留标题或丢失寄存器草稿', () => {
+  const { root, workspace } = fixture(); workspace.update(state());
+  const entry = device(busCard(root, 'Huawei-V3'), 1);
+  const header = classes(entry, 'device-header')[0];
+  const registers = classes(entry, 'runtime-registers')[0]; registers.open = true;
+  const input = manualInput(entry); input.value = '375'; input.oninput();
+  const next = state(); delete next.buses[0].slaves[0].model;
+  workspace.update(next);
+  assert.equal(classes(header, 'runtime-device-heading').length, 0);
+  assert.equal(classes(header, 'static-device-title')[0].hidden, false);
+  assert.equal(modelCard(entry), undefined);
+  assert.equal(registers.open, true); assert.equal(manualInput(entry), input); assert.equal(input.value, '375');
+  workspace.update(state());
+  assert.equal(classes(header, 'runtime-device-heading').length, 1);
+  assert.equal(classes(header, 'static-device-title')[0].hidden, true);
+  assert.equal(modelCard(entry).open, false); assert.equal(registers.open, true);
+  assert.equal(input.value, '375');
 });
 
 test('每台设备的行为模型独立展开，收起轮询不发送控制，展开写入仍对应原站号', async () => {

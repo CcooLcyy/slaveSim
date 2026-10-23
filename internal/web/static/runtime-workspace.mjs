@@ -76,9 +76,11 @@ export function createRuntimeWorkspace(root, options = {}) {
   function makeDevice(bus, slave) {
     const entry = { rows: new Map() };
     entry.node = element('section', 'runtime-device'); entry.node.dataset.deviceId = String(slave.device_id);
+    entry.header = element('div', 'device-header');
     entry.staticTitle = element('h3', 'static-device-title', `Modbus 设备 · 站号 ${slave.device_id}`);
+    entry.header.append(entry.staticTitle);
     entry.models = element('div', 'device-model');
-    entry.panel = createHuaweiPanel(entry.models, { fetch, onApplied: options.onApplied });
+    entry.panel = createHuaweiPanel(entry.models, { fetch, onApplied: options.onApplied, headerRoot: entry.header });
     entry.registers = element('details', 'register-group runtime-registers');
     entry.registers.dataset.deviceId = String(slave.device_id);
     entry.summary = element('summary');
@@ -87,7 +89,7 @@ export function createRuntimeWorkspace(root, options = {}) {
     entry.message = element('p', 'register-message');
     entry.message.setAttribute('role', 'status'); entry.message.setAttribute('aria-live', 'polite');
     entry.registers.append(entry.scroll, entry.message);
-    entry.node.append(entry.staticTitle, entry.models, entry.registers);
+    entry.node.append(entry.header, entry.models, entry.registers);
     return entry;
   }
 
@@ -170,7 +172,7 @@ export function createRuntimeWorkspace(root, options = {}) {
         device.bus = bus.name;
         device.staticTitle.hidden = slave.model?.kind === 'huawei_v3';
         device.panel.update({ now: state.now, buses: [{ ...bus, slaves: [slave] }] });
-        device.summary.textContent = `寄存器与手动设值 · 站号 ${slave.device_id} · ${(slave.registers || []).length} 项`;
+        device.summary.textContent = `寄存器与手动设值 · ${(slave.registers || []).length} 项`;
         const signature = JSON.stringify((slave.registers || []).map(reg => [reg.function, reg.address, reg.type, reg.writable, reg.model_managed]));
         if (device.signature !== signature) { makeTable(device, bus, slave); device.signature = signature; }
         for (const reg of slave.registers || []) {
