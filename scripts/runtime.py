@@ -30,6 +30,27 @@ MAX_UPDATE_REQUEST = 4096
 HOP_HEADERS = {"connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
                "te", "trailer", "transfer-encoding", "upgrade"}
 BUSY_STATES = {"checking", "updating"}
+MAX_LOG_SIZE_MIB = 8796093022207
+MAX_LOG_BACKUPS = 9223372036854775807
+
+
+def log_policy_integer(value, minimum, maximum, label):
+    if isinstance(value, str) and re.fullmatch(r"[+-]?[0-9]+", value):
+        try:
+            value = int(value)
+        except ValueError:
+            value = None
+    if type(value) is not int or not minimum <= value <= maximum:
+        raise argparse.ArgumentTypeError(label + "必须为 " + str(minimum) + " 到 " + str(maximum) + " 的整数")
+    return value
+
+
+def log_size_mib(value):
+    return log_policy_integer(value, 1, MAX_LOG_SIZE_MIB, "日志文件大小（MiB）")
+
+
+def log_backup_count(value):
+    return log_policy_integer(value, 0, MAX_LOG_BACKUPS, "日志历史文件数量")
 
 
 class BusyError(update.UpdateError):
@@ -117,7 +138,13 @@ def durable_json(path, value):
 
 class Manager:
     def __init__(self, runtime_dir, updater_config, config="/etc/slavesim/config.json",
-                 logfile="", seed=Path("/slavesim"), probe=Path("/probe"), child_port=16001):
+                 logfile="", seed=Path("/slavesim"), probe=Path("/probe"), child_port=16001,
+                 log_max_size_mib=50, log_backups=5):
+        try:
+            self.log_max_size_mib = log_size_mib(log_max_size_mib)
+            self.log_backups = log_backup_count(log_backups)
+        except argparse.ArgumentTypeError as exc:
+            raise ValueError(str(exc)) from exc
         self.runtime_dir = Path(runtime_dir)
         self.runtime_dir.mkdir(parents=True, exist_ok=True)
         (self.runtime_dir / "releases").mkdir(exist_ok=True)
@@ -342,6 +369,11 @@ class Manager:
         args = [str(binary), "-config", self.config, "-http", "127.0.0.1:" + str(self.child_port)]
         if self.logfile:
             args += ["-logfile", self.logfile]
+        # 默认依赖新版程序内置策略，不传新参数，允许回滚尚未支持轮转的旧程序。
+        if self.log_max_size_mib != 50:
+            args += ["-log-max-size-mib", str(self.log_max_size_mib)]
+        if self.log_backups != 5:
+            args += ["-log-backups", str(self.log_backups)]
         self.child = subprocess.Popen(args, stdin=subprocess.DEVNULL)
 
     def stop_child(self):
@@ -599,6 +631,8 @@ def main(argv=None):
     parser.add_argument("-config", default="/etc/slavesim/config.json")
     parser.add_argument("-http", default=":16000", type=listen_address)
     parser.add_argument("-logfile", default="")
+    parser.add_argument("-log-max-size-mib", type=log_size_mib, default=50, help="单个日志文件大小上限，单位 MiB，默认 50")
+    parser.add_argument("-log-backups", type=log_backup_count, default=5, help="保留的历史日志文件数量，默认 5，允许为 0")
     parser.add_argument("-version", action="store_true")
     parser.add_argument("--runtime-dir", type=Path, default=Path("/var/lib/slavesim"))
     parser.add_argument("--updater-config", type=Path, default=Path("/etc/slavesim/updater.json"))
@@ -611,7 +645,8 @@ def main(argv=None):
             binary = args.seed_binary
             if (args.runtime_dir / "state.json").exists():
                 installed = Manager(args.runtime_dir, args.updater_config, args.config, args.logfile,
-                                    args.seed_binary, args.probe_binary, args.child_port)
+                                    args.seed_binary, args.probe_binary, args.child_port,
+                                    log_max_size_mib=args.log_max_size_mib, log_backups=args.log_backups)
                 binary = installed.binary_path()
             return subprocess.call([str(binary), "-version"])
         except (update.UpdateError, OSError, ValueError) as exc:
@@ -627,7 +662,8 @@ def main(argv=None):
     signal.signal(signal.SIGINT, stop)
     try:
         manager = Manager(args.runtime_dir, args.updater_config, args.config, args.logfile,
-                          args.seed_binary, args.probe_binary, args.child_port)
+                          args.seed_binary, args.probe_binary, args.child_port,
+                          log_max_size_mib=args.log_max_size_mib, log_backups=args.log_backups)
         manager.start()
         server = RuntimeServer(args.http, manager)
         server.timeout = 0.5

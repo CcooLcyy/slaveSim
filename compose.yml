@@ -5,6 +5,11 @@ services:
       context: .
     container_name: slavesim
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     ports:
       - "16000:16000"
     volumes:

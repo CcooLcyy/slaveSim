@@ -8,11 +8,11 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -22,6 +22,7 @@ import (
 
 	"slavesim/internal/config"
 	"slavesim/internal/eventbus"
+	"slavesim/internal/logfile"
 	"slavesim/internal/sim"
 	"slavesim/internal/web"
 )
@@ -30,6 +31,8 @@ func main() {
 	configPath := flag.String("config", "/etc/slavesim/config.json", "配置文件路径")
 	httpAddr := flag.String("http", ":16000", "WebUI 监听地址")
 	logFile := flag.String("logfile", "", "报文日志落盘路径，留空表示只输出到标准输出")
+	logMaxSizeMiB := flag.Int64("log-max-size-mib", 50, "单个日志文件大小上限（MiB，必须大于零）")
+	logBackups := flag.Int("log-backups", 5, "历史日志文件保留数量（允许为零）")
 	showVersion := flag.Bool("version", false, "显示版本信息并退出")
 	flag.Parse()
 	if *showVersion {
@@ -37,13 +40,26 @@ func main() {
 		return
 	}
 
-	if err := run(*configPath, *httpAddr, *logFile); err != nil {
+	if err := run(*configPath, *httpAddr, *logFile, *logMaxSizeMiB, *logBackups); err != nil {
 		log.Printf("[slaveSim] 启动失败: %v", err)
 		os.Exit(1)
 	}
 }
 
-func run(configPath, httpAddr, logFile string) error {
+func validateLogPolicy(maxSizeMiB int64, backups int) error {
+	if maxSizeMiB <= 0 || maxSizeMiB > 8796093022207 {
+		return fmt.Errorf("日志文件大小必须为 1 到 8796093022207 MiB")
+	}
+	if backups < 0 {
+		return fmt.Errorf("历史日志文件保留数量不能为负数")
+	}
+	return nil
+}
+
+func run(configPath, httpAddr, logFile string, maxSizeMiB int64, backups int) error {
+	if err := validateLogPolicy(maxSizeMiB, backups); err != nil {
+		return err
+	}
 	log.Printf("[slaveSim] 版本=%s 提交=%s 构建时间=%s", version, commit, buildTime)
 	cfg, err := config.Load(configPath)
 	if err != nil {
@@ -51,8 +67,13 @@ func run(configPath, httpAddr, logFile string) error {
 	}
 
 	logs := eventbus.NewLog(1000)
-	if err := startConsoleLogger(logs, logFile); err != nil {
+	stopLogger, err := startConsoleLogger(logs, logFile, maxSizeMiB<<20, backups)
+	if err != nil {
 		return err
+	}
+	defer stopLogger()
+	if logFile != "" {
+		logs.Publish(eventbus.Event{Level: eventbus.LevelInfo, Summary: fmt.Sprintf("文件日志已启用: 路径=%s 单文件上限=%d MiB 历史保留=%d 个", logFile, maxSizeMiB, backups)})
 	}
 
 	manager, err := sim.NewManager(configPath, cfg, logs)
@@ -100,33 +121,66 @@ func run(configPath, httpAddr, logFile string) error {
 
 // consoleLogger 把日志同时输出到标准输出与可选的文件。
 type consoleLogger struct {
-	file *os.File
+	file        io.WriteCloser
+	output      io.Writer
+	diagnostics io.Writer
+	lastError   time.Time
 }
 
-func startConsoleLogger(logs *eventbus.Log, logFile string) error {
-	cl := &consoleLogger{}
-	if logFile != "" {
-		if err := os.MkdirAll(filepath.Dir(logFile), 0o755); err != nil {
-			return fmt.Errorf("创建日志目录失败: %w", err)
+// writeLine 保留标准输出；文件故障独立报告，连续故障最多每分钟提示一次。
+func (cl *consoleLogger) writeLine(line string, now time.Time) {
+	fmt.Fprintln(cl.output, line)
+	if cl.file == nil {
+		return
+	}
+	if _, err := cl.file.Write([]byte(line + "\n")); err != nil {
+		if cl.lastError.IsZero() || now.Sub(cl.lastError) >= time.Minute {
+			fmt.Fprintf(cl.diagnostics, "%s [error] [slaveSim] 写入文件日志失败，标准输出继续保留（连续故障每分钟最多提示一次）: %v\n", now.Format("2006-01-02 15:04:05"), err)
+			cl.lastError = now
 		}
-		f, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	}
+}
+
+func startConsoleLogger(logs *eventbus.Log, logFile string, maxBytes int64, backups int) (func(), error) {
+	cl := &consoleLogger{output: os.Stdout, diagnostics: os.Stderr}
+	if logFile != "" {
+		f, err := logfile.New(logFile, maxBytes, backups)
 		if err != nil {
-			return fmt.Errorf("打开日志文件 %s 失败: %w", logFile, err)
+			return nil, err
 		}
 		cl.file = f
 	}
 
 	ch, _ := logs.Subscribe()
+	stop, done := make(chan struct{}), make(chan struct{})
 	go func() {
-		for e := range ch {
-			line := formatEvent(e)
-			fmt.Println(line)
-			if cl.file != nil {
-				_, _ = cl.file.WriteString(line + "\n")
+		defer close(done)
+		for {
+			select {
+			case e := <-ch:
+				cl.writeLine(formatEvent(e), time.Now())
+			case <-stop:
+				// 生产者退出后排空已接收日志，再关闭文件。
+				for {
+					select {
+					case e := <-ch:
+						cl.writeLine(formatEvent(e), time.Now())
+					default:
+						return
+					}
+				}
 			}
 		}
 	}()
-	return nil
+	return func() {
+		close(stop)
+		<-done
+		if cl.file != nil {
+			if err := cl.file.Close(); err != nil {
+				log.Printf("[slaveSim] 关闭日志文件失败: %v", err)
+			}
+		}
+	}, nil
 }
 
 // formatEvent 按仓库既有日志风格输出：时间 + 级别 + 模块 + 中文描述 + 十六进制报文。

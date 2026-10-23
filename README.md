@@ -34,6 +34,7 @@ cp deploy/updater.runtime.example.json conf/updater.json  # 仅首次初始化�
 docker build -t slavesim:latest .
 docker run -d --name slavesim \
   -p 16000:16000 \
+  --log-driver json-file --log-opt max-size=10m --log-opt max-file=3 \
   -v /dev/pts:/dev/pts \
   -v /home/daniel/serial-sim:/home/daniel/serial-sim \
   -v "$PWD/conf:/etc/slavesim" \
@@ -52,6 +53,14 @@ docker compose up -d --build
 ```
 
 配置目录需要对容器进程可写。Web 保存使用同目录临时文件和原子替换，单文件挂载即使改成可写也无法完成替换。挂载 `conf` 会遮蔽镜像中的默认更新源，需保留 `conf/updater.json` 才能启用网页更新。旧版本地 Compose 部署需把既有 `config.json` 复制到 `conf/config.json`，保留既有更新源与 `runtime/`，更新 Compose 后执行 `docker compose up -d --build --force-recreate` 重建模拟器容器。配置目录建议专用，挂载后其中的文件都会进入容器；由发布更新器管理的部署按 [R2 发布与自动更新](doc/R2发布与自动更新.md) 中的旧部署迁移步骤处理。
+
+### 日志容量限制
+
+启用 `-logfile` 时，默认每个文件最多 50 MiB，保留 5 个历史文件（`.1` 最新），正常日志总量约 300 MiB。可通过 `-log-max-size-mib` 和 `-log-backups` 调整，后者允许为 0；收发报文仍完整输出。已有超大日志在首次启动时轮转并保留，可能暂时超出预算，随后随正常轮转淘汰。详细行为和故障处理见 [日志保留策略](doc/日志保留策略.md)。
+
+两份 Compose 和上面的 `docker run` 示例把 Docker 标准输出日志限制为每文件 10m、最多 3 个文件，约 30 MiB。Docker 日志参数及容器管理脚本的变更需要更新基础镜像、重建容器后生效；网页更新仅替换 Go 程序，不更新这两部分。已有 Compose 部署应用新版镜像与编排后需执行 `docker compose up -d --force-recreate`，本地构建部署加 `--build`。
+
+管理进程在更新、回滚及子进程重启时沿用日志参数。默认参数不显式传给子进程，以允许回滚旧程序；尚未支持日志轮转的旧程序仍没有文件容量限制。自定义非默认值会透传给子进程，旧程序若不支持这些参数，将无法启动或回滚；回滚到旧程序前需恢复默认设置并重建容器。
 
 ### 构建 arm64 镜像（部署到设备）
 
