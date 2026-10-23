@@ -25,6 +25,8 @@
 
 `go test -race` 需要 CGO 与 gcc，不能全局关闭 CGO。最终二进制构建单独设置 `CGO_ENABLED=0`。PTY 测试使用作业容器自己的 `/dev/ptmx` 和 `/dev/pts`，无需特权容器或共享宿主机 PTY。
 
+Node 22 的测试子进程报告协议存在中文日志反序列化问题。CI 为每个前端测试文件分别运行 `node --test --experimental-test-isolation=none`，保留文件之间的进程隔离，直接输出测试结果，任意一个文件失败都会使作业失败。
+
 ## 镜像构建边界
 
 镜像构建复用现有受 mTLS 保护的 BuildKit 服务，使用 slaveSim 独立的客户端证书。连接变量 `BUILDKIT_HOST`、`BUILDKIT_CA_B64`、`BUILDKIT_CERT_B64`、`BUILDKIT_KEY_B64` 仅向 `ci-build` 环境开放，并作为受保护变量配置；证书变量同时掩码。客户端证书有效期一年，需要到期前轮换。普通合并请求只执行检查与二进制构建，不进入该环境。
@@ -38,7 +40,9 @@
 ```bash
 go vet ./...
 go test -race ./...
-node --test test/*.test.mjs
+for file in test/*.test.mjs; do
+  node --test --experimental-test-isolation=none "$file" || exit $?
+done
 python3 -m unittest discover -s test -p 'test_*.py' -v
 ```
 

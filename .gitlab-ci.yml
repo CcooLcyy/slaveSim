@@ -42,7 +42,11 @@ test:
   script:
     - go vet ./...
     - go test -race ./...
-    - node --test test/*.test.mjs
+    # Node 22 子进程报告协议会被部分中文日志破坏；每文件独立进程并直接报告结果。
+    - |
+      for file in test/*.test.mjs; do
+        node --test --experimental-test-isolation=none "$file" || exit $?
+      done
     - python3 -m unittest discover -s test -p 'test_*.py' -v
 
 build-binary:
