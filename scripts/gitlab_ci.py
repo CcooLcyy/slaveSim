@@ -1,0 +1,202 @@
+#!/usr/bin/env python3
+"""运行 GitLab x64 持续集成，复用版本规则与实际运行镜像的 PTY 验证。"""
+
+from __future__ import annotations
+
+import argparse
+import base64
+from contextlib import contextmanager
+import gzip
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+
+from versioning import build_metadata, image_name, read_base_version, validate_commit
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def create_metadata(commit: str, output: Path) -> dict:
+    data = build_metadata("ci", commit, read_base_version(ROOT / "VERSION"))
+    values = dict(VERSION=data["version"], COMMIT=data["commit"], BUILD_TIME=data["published_at"],
+                  IMAGE_TAG=data["image_tag"], CHANNEL=data["channel"])
+    output.write_text("".join(f"{key}={value}\n" for key, value in values.items()), encoding="utf-8", newline="\n")
+    print(f"CI 版本已生成：{data['version']}，来源提交：{commit}", flush=True)
+    return data
+
+
+def load_metadata(env: dict) -> dict:
+    names = ("VERSION", "COMMIT", "BUILD_TIME", "IMAGE_TAG", "CHANNEL", "CI_COMMIT_SHA")
+    missing = [name for name in names if not env.get(name)]
+    if missing:
+        raise ValueError("缺少 CI 元数据：" + ", ".join(missing))
+    if env["COMMIT"] != env["CI_COMMIT_SHA"]:
+        raise ValueError("元数据提交号与流水线提交不一致")
+    validate_commit(env["CHANNEL"], env["VERSION"], env["COMMIT"])
+    base_version = read_base_version(ROOT / "VERSION")
+    expected = build_metadata("ci", env["COMMIT"], base_version, timestamp=env["BUILD_TIME"])
+    data = dict(channel=env["CHANNEL"], version=env["VERSION"], commit=env["COMMIT"],
+                published_at=env["BUILD_TIME"], image_tag=env["IMAGE_TAG"])
+    if data != expected:
+        raise ValueError("CI 版本、时间、通道或镜像标签不一致")
+    return data
+
+
+def checksums(folder: Path) -> None:
+    files = sorted(path for path in folder.iterdir() if path.is_file() and path.name != "SHA256SUMS")
+    (folder / "SHA256SUMS").write_text("".join(
+        f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}\n" for path in files), encoding="utf-8")
+
+
+def build_binaries(root: Path, env: dict) -> dict:
+    data = load_metadata(env)
+    folder = root / "dist/amd64"
+    folder.mkdir(parents=True, exist_ok=True)
+    build_env = dict(env, CGO_ENABLED="0", GOOS="linux", GOARCH="amd64", GOTOOLCHAIN="local")
+    flags = f"-s -w -X main.version={data['version']} -X main.commit={data['commit']} -X main.buildTime={data['published_at']}"
+    print("构建 linux/amd64 主程序与协议探针", flush=True)
+    subprocess.run(["go", "build", "-trimpath", "-ldflags", flags, "-o", str(folder / "slavesim"), "."],
+                   cwd=root, env=build_env, check=True)
+    subprocess.run(["go", "build", "-trimpath", "-ldflags", "-s -w", "-o", str(folder / "probe"), "./cmd/probe"],
+                   cwd=root, env=build_env, check=True)
+    version = subprocess.check_output([str(folder / "slavesim"), "-version"], text=True).strip()
+    if data["version"] not in version or data["commit"] not in version or data["published_at"] not in version:
+        raise ValueError("二进制版本输出与 CI 元数据不一致")
+    print(version, flush=True)
+    (folder / "metadata.json").write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    checksums(folder)
+    return data
+
+
+def make_ci_dockerfile(source: str) -> str:
+    # 仅在临时 Dockerfile 中追加验证阶段，最终导出的运行镜像不带测试文件。
+    marker = "FROM ${PYTHON_IMAGE}"
+    if source.count(marker) != 1:
+        raise ValueError("运行镜像阶段无法唯一识别，拒绝跳过镜像验证")
+    source = source.replace(marker, marker + " AS ci-runtime", 1)
+    return source + """
+
+# 验证实际运行层中的管理进程、网页和两个站点的真实 PTY 收发。
+FROM ci-runtime AS ci-smoke
+ARG CI_SMOKE_NONCE
+COPY scripts/smoke_runtime.py /ci-smoke-runtime.py
+RUN test -n "$CI_SMOKE_NONCE" && /slavesim -version \\
+    && python3 -B /ci-smoke-runtime.py && printf '%s\\n' "$CI_SMOKE_NONCE" > /ci-smoke-ok
+
+FROM scratch AS ci-smoke-result
+COPY --from=ci-smoke /ci-smoke-ok /ci-smoke-ok
+"""
+
+
+@contextmanager
+def buildkit_client(env: dict):
+    names = ("BUILDKIT_HOST", "BUILDKIT_CA_B64", "BUILDKIT_CERT_B64", "BUILDKIT_KEY_B64")
+    missing = [name for name in names if not env.get(name)]
+    if missing:
+        raise ValueError("缺少 BuildKit 配置：" + ", ".join(missing))
+    if not re.fullmatch(r"tcp://[A-Za-z0-9.-]+:[0-9]+", env["BUILDKIT_HOST"]):
+        raise ValueError("BuildKit 必须使用配置了 mTLS 的 TCP 地址")
+    with tempfile.TemporaryDirectory(prefix="slavesim-buildkit-") as directory:
+        folder = Path(directory)
+        os.chmod(folder, 0o700)
+        for key, name in (("BUILDKIT_CA_B64", "ca.pem"), ("BUILDKIT_CERT_B64", "cert.pem"), ("BUILDKIT_KEY_B64", "key.pem")):
+            try:
+                content = base64.b64decode(env[key], validate=True)
+            except ValueError as exc:
+                raise ValueError("BuildKit 证书编码不合法：" + key) from exc
+            path = folder / name
+            path.write_bytes(content)
+            os.chmod(path, 0o600)
+        yield ["buildctl", "--addr", env["BUILDKIT_HOST"], "--tlscacert", str(folder / "ca.pem"),
+               "--tlscert", str(folder / "cert.pem"), "--tlskey", str(folder / "key.pem")], folder
+
+
+def run_logged(command: list[str], log: Path, root: Path) -> None:
+    # 不输出环境变量或私钥，终端和产物仅保留构建、运行验证日志。
+    with log.open("w", encoding="utf-8") as stream:
+        process = subprocess.Popen(command, cwd=root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                   text=True, encoding="utf-8", errors="replace")
+        for line in process.stdout:
+            print(line, end="", flush=True)
+            stream.write(line)
+        if process.wait():
+            raise subprocess.CalledProcessError(process.returncode, command)
+
+
+def build_image(root: Path, env: dict) -> None:
+    data = load_metadata(env)
+    folder = root / "dist/amd64"
+    if not (folder / "metadata.json").is_file() or json.loads((folder / "metadata.json").read_text()) != data:
+        raise ValueError("缺少同一提交已经测试并构建的二进制元数据")
+    for name in ("slavesim", "probe"):
+        if not (folder / name).is_file():
+            raise ValueError("缺少二进制产物：" + name)
+    nonce = env.get("CI_JOB_ID")
+    if not nonce or not nonce.isdigit():
+        raise ValueError("缺少合法的 CI_JOB_ID，无法保证镜像验证重新执行")
+    with buildkit_client(env) as (client, temporary):
+        # 独立 ignore 文件仅增加 smoke 脚本；不改变生产镜像的构建上下文规则。
+        dockerfile_dir = temporary / "dockerfile"
+        dockerfile_dir.mkdir()
+        (dockerfile_dir / "Dockerfile").write_text(make_ci_dockerfile((root / "Dockerfile").read_text()), encoding="utf-8")
+        ignore = (root / ".dockerignore").read_text()
+        (dockerfile_dir / "Dockerfile.dockerignore").write_text(ignore + "\n!scripts/smoke_runtime.py\n", encoding="utf-8")
+        epoch = subprocess.check_output(["git", "show", "-s", "--format=%ct", "HEAD"], cwd=root, text=True).strip()
+        common = client + ["build", "--progress", "plain", "--frontend", "dockerfile.v0",
+                           "--local", f"context={root}", "--local", f"dockerfile={dockerfile_dir}",
+                           "--opt", "platform=linux/amd64", "--opt", f"build-arg:VERSION={data['version']}",
+                           "--opt", f"build-arg:COMMIT={data['commit']}",
+                           "--opt", f"build-arg:BUILD_TIME={data['published_at']}",
+                           "--opt", f"build-arg:SOURCE_DATE_EPOCH={epoch}",
+                           "--opt", "build-arg:BUILDKIT_SYNTAX=docker.m.daocloud.io/docker/dockerfile:1"]
+        for key in ("GO_IMAGE", "PYTHON_IMAGE"):
+            if env.get(key):
+                common += ["--opt", f"build-arg:{key}={env[key]}"]
+        result = temporary / "smoke"
+        print("在实际运行镜像环境中验证版本、管理进程、网页与 PTY", flush=True)
+        run_logged(common + ["--opt", "target=ci-smoke-result", "--opt", f"build-arg:CI_SMOKE_NONCE={nonce}",
+                             "--output", f"type=local,dest={result}"], folder / "smoke-runtime.log", root)
+        if (result / "ci-smoke-ok").read_text().strip() != nonce:
+            raise ValueError("镜像运行验证标记不一致")
+        image = image_name(data["version"], "amd64")
+        archive = temporary / "image.tar"
+        run_logged(common + ["--opt", "target=ci-runtime", "--output", f"type=docker,name={image},dest={archive}"],
+                   folder / "image-build.log", root)
+        with archive.open("rb") as source, (folder / "slavesim-image.tar.gz").open("wb") as destination:
+            with gzip.GzipFile(filename="", mode="wb", fileobj=destination, mtime=0) as compressed:
+                shutil.copyfileobj(source, compressed)
+        identity = subprocess.check_output([sys.executable, str(root / "scripts/update.py"), "image-id",
+                                            "--archive", str(folder / "slavesim-image.tar.gz"), "--image", image],
+                                           text=True).strip()
+        (folder / "image-id.txt").write_text(identity + "\n", encoding="utf-8")
+    checksums(folder)
+    print(f"x64 镜像构建与运行验证通过：{image}，{identity}", flush=True)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="slaveSim x64 GitLab CI")
+    commands = parser.add_subparsers(dest="command", required=True)
+    metadata = commands.add_parser("metadata", help="生成本次流水线共用元数据")
+    metadata.add_argument("--output", type=Path, required=True)
+    commands.add_parser("build", help="构建 x64 二进制")
+    commands.add_parser("image", help="构建并验证 x64 运行镜像")
+    args = parser.parse_args()
+    try:
+        if args.command == "metadata":
+            create_metadata(os.environ.get("CI_COMMIT_SHA", ""), args.output)
+        elif args.command == "build":
+            build_binaries(ROOT, dict(os.environ))
+        else:
+            build_image(ROOT, dict(os.environ))
+    except (ValueError, OSError, subprocess.SubprocessError) as exc:
+        parser.exit(1, f"GitLab CI 执行失败：{exc}\n")
+
+
+if __name__ == "__main__":
+    main()

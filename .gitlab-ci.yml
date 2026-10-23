@@ -1,0 +1,86 @@
+stages:
+  - metadata
+  - test
+  - build
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "master" && ($CI_PIPELINE_SOURCE == "push" || $CI_PIPELINE_SOURCE == "web")'
+    - when: never
+
+default:
+  image:
+    name: slavesim-ci-tools:bookworm-v1
+    pull_policy: if-not-present
+  tags:
+    - linux
+    - amd64
+    - docker
+  interruptible: true
+
+variables:
+  PYTHON_IMAGE: docker.m.daocloud.io/library/python:3.12-alpine
+
+metadata:
+  stage: metadata
+  script:
+    - python3 scripts/gitlab_ci.py metadata --output metadata.env
+  artifacts:
+    reports:
+      dotenv: metadata.env
+    paths:
+      - metadata.env
+    expire_in: 7 days
+
+test:
+  stage: test
+  timeout: 20 minutes
+  needs:
+    - job: metadata
+      artifacts: true
+  script:
+    - go vet ./...
+    - go test -race ./...
+    - node --test test/*.test.mjs
+    - python3 -m unittest discover -s test -p 'test_*.py' -v
+
+build-binary:
+  stage: build
+  timeout: 15 minutes
+  needs:
+    - job: metadata
+      artifacts: true
+    - job: test
+      artifacts: false
+  script:
+    - python3 scripts/gitlab_ci.py build
+  artifacts:
+    paths:
+      - dist/amd64/
+    expire_in: 7 days
+
+build-image:
+  stage: build
+  timeout: 30 minutes
+  resource_group: slavesim-ci-image-amd64
+  needs:
+    - job: metadata
+      artifacts: true
+    - job: test
+      artifacts: false
+    - job: build-binary
+      artifacts: true
+  environment:
+    name: ci-build
+    action: prepare
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master" && $CI_COMMIT_REF_PROTECTED == "true" && ($CI_PIPELINE_SOURCE == "push" || $CI_PIPELINE_SOURCE == "web")'
+    - when: never
+  script:
+    - python3 scripts/gitlab_ci.py image
+  artifacts:
+    when: always
+    paths:
+      - dist/amd64/
+    expire_in: 7 days
