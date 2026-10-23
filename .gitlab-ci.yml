@@ -2,6 +2,7 @@ stages:
   - metadata
   - test
   - build
+  - publish
 
 workflow:
   rules:
@@ -21,6 +22,9 @@ default:
 
 variables:
   PYTHON_IMAGE: docker.m.daocloud.io/library/python:3.12-alpine
+  R2_BUCKET: mskdsp-update
+  R2_PREFIX: slavesim
+  R2_PUBLIC_BASE_URL: https://pub-19f3d71852b04011b120b1b814141c12.r2.dev
 
 metadata:
   stage: metadata
@@ -87,4 +91,34 @@ build-image:
     when: always
     paths:
       - dist/amd64/
+    expire_in: 7 days
+
+publish-r2:
+  stage: publish
+  image:
+    name: mskdsp-platform-ci-tools:bookworm-v2
+    pull_policy: if-not-present
+  timeout: 20 minutes
+  interruptible: false
+  resource_group: slavesim-r2-ci
+  needs:
+    - job: metadata
+      artifacts: true
+    - job: test
+      artifacts: false
+    - job: build-binary
+      artifacts: false
+    - job: build-image
+      artifacts: true
+  environment:
+    name: ci
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master" && $CI_COMMIT_REF_PROTECTED == "true" && ($CI_PIPELINE_SOURCE == "push" || $CI_PIPELINE_SOURCE == "web")'
+    - when: never
+  script:
+    - python3 scripts/gitlab_ci.py publish
+  artifacts:
+    when: always
+    paths:
+      - release/
     expire_in: 7 days

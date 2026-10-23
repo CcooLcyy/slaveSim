@@ -179,6 +179,49 @@ def build_image(root: Path, env: dict) -> None:
     print(f"x64 镜像构建与运行验证通过：{image}，{identity}", flush=True)
 
 
+def publish_release(root: Path, env: dict) -> None:
+    if (env.get("CI_COMMIT_BRANCH") != "master" or env.get("CI_COMMIT_REF_PROTECTED") != "true"
+            or env.get("CI_PIPELINE_SOURCE") not in ("push", "web")):
+        raise ValueError("R2 发布仅允许受保护 master 的推送或手动流水线")
+    data = load_metadata(env)
+    names = ("R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY")
+    missing = [name for name in names if not env.get(name)]
+    if missing:
+        raise ValueError("缺少 R2 发布凭据：" + ", ".join(missing))
+    folder = root / "dist/amd64"
+    if json.loads((folder / "metadata.json").read_text(encoding="utf-8")) != data:
+        raise ValueError("待发布产物与本次流水线元数据不一致")
+    verified = set()
+    for line in (folder / "SHA256SUMS").read_text(encoding="utf-8").splitlines():
+        match = re.fullmatch(r"([0-9a-f]{64})  ([A-Za-z0-9][A-Za-z0-9._-]*)", line)
+        if not match or match[2] in verified:
+            raise ValueError("构建产物校验和格式不合法或文件重复")
+        checksum, name = match.groups()
+        path = folder / name
+        if path.is_symlink() or not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != checksum:
+            raise ValueError("构建产物 SHA256 校验失败：" + name)
+        verified.add(name)
+    required = {"slavesim", "probe", "slavesim-image.tar.gz", "image-id.txt", "metadata.json"}
+    if not required <= verified:
+        raise ValueError("缺少已校验的发布输入：" + ", ".join(sorted(required - verified)))
+    bucket = env.get("R2_BUCKET") or "mskdsp-update"
+    prefix = env.get("R2_PREFIX") or "slavesim"
+    base = env.get("R2_PUBLIC_BASE_URL") or "https://pub-19f3d71852b04011b120b1b814141c12.r2.dev"
+    publish_env = dict(env, AWS_ACCESS_KEY_ID=env["R2_ACCESS_KEY_ID"],
+                       AWS_SECRET_ACCESS_KEY=env["R2_SECRET_ACCESS_KEY"], AWS_DEFAULT_REGION="auto",
+                       AWS_REQUEST_CHECKSUM_CALCULATION="when_required", AWS_RESPONSE_CHECKSUM_VALIDATION="when_required")
+    common = [sys.executable, str(root / "scripts/release.py")]
+    options = ["--output-dir", str(root / "release"), "--architectures", "amd64",
+               "--prefix", prefix, "--public-base-url", base]
+    print(f"校验通过，沿用现有发布工具上传 R2：{prefix}/ci，版本：{data['version']}", flush=True)
+    subprocess.run(common + ["prepare", "--input-dir", str(root / "dist"), "--version", data["version"],
+                             "--channel", "ci", "--commit", data["commit"], "--published-at", data["published_at"]]
+                   + options, cwd=root, env=publish_env, check=True)
+    subprocess.run(common + ["publish", "--bucket", bucket, "--account-id", env["R2_ACCOUNT_ID"]]
+                   + options, cwd=root, env=publish_env, check=True)
+    print(f"GitLab R2 发布完成：{base.rstrip('/')}/{prefix}/ci/latest.json", flush=True)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="slaveSim x64 GitLab CI")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -186,14 +229,17 @@ def main() -> None:
     metadata.add_argument("--output", type=Path, required=True)
     commands.add_parser("build", help="构建 x64 二进制")
     commands.add_parser("image", help="构建并验证 x64 运行镜像")
+    commands.add_parser("publish", help="将已验证的 x64 产物发布到 R2 测试通道")
     args = parser.parse_args()
     try:
         if args.command == "metadata":
             create_metadata(os.environ.get("CI_COMMIT_SHA", ""), args.output)
         elif args.command == "build":
             build_binaries(ROOT, dict(os.environ))
-        else:
+        elif args.command == "image":
             build_image(ROOT, dict(os.environ))
+        else:
+            publish_release(ROOT, dict(os.environ))
     except (ValueError, OSError, subprocess.SubprocessError) as exc:
         parser.exit(1, f"GitLab CI 执行失败：{exc}\n")
 

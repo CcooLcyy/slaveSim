@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""生成双架构 slaveSim 发布包，并将校验后的版本发布到 R2。"""
+"""生成指定架构的 slaveSim 发布包，并将校验后的版本发布到 R2。"""
 
 from __future__ import annotations
 
@@ -125,6 +125,15 @@ def json_bytes(value: dict) -> bytes:
     return (json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode("utf-8")
 
 
+def selected_architectures(value: tuple[str, ...] | list[str]) -> tuple[str, ...]:
+    """默认双架构；显式选择必须非空、无重复，并使用固定打包顺序。"""
+    if (not isinstance(value, (tuple, list)) or not value
+            or any(not isinstance(arch, str) or arch not in ARCHES for arch in value)
+            or len(set(value)) != len(value)):
+        raise ValueError("发布架构必须从 amd64、arm64 中选择，不能为空或重复")
+    return tuple(arch for arch in ARCHES if arch in value)
+
+
 def same_release(first: dict, second: dict) -> bool:
     # 发布时间保留首次发布的值，其余全部发布元数据必须一致。
     return {key: value for key, value in first.items() if key != "published_at"} == {
@@ -155,11 +164,13 @@ def binary_package(destination: Path, files: list[tuple[str, Path, int]]) -> Non
 
 def prepare(*, input_dir: Path, output_dir: Path, version: str, channel: str,
             commit: str, public_base_url: str, prefix: str = "slavesim",
-            published_at: str | None = None, source_dir: Path = SOURCE_DIR) -> dict:
+            published_at: str | None = None, source_dir: Path = SOURCE_DIR,
+            architectures: tuple[str, ...] | list[str] = ARCHES) -> dict:
+    architectures = selected_architectures(architectures)
     prefix, base = metadata(version, channel, commit, prefix, public_base_url)
     when = timestamp(published_at)
     input_dir, output_dir, source_dir = Path(input_dir), Path(output_dir), Path(source_dir)
-    for arch in ARCHES:
+    for arch in architectures:
         for name in ("slavesim", "probe", "slavesim-image.tar.gz", "image-id.txt"):
             if not (input_dir / arch / name).is_file():
                 raise ValueError(f"缺少 {arch} 发布输入: {name}")
@@ -182,7 +193,7 @@ def prepare(*, input_dir: Path, output_dir: Path, version: str, channel: str,
     checksum_lines = []
     with tempfile.TemporaryDirectory(prefix="slavesim-release-") as temporary:
         staging = Path(temporary)
-        for arch in ARCHES:
+        for arch in architectures:
             directory = staging / "assets" / asset_version / arch
             directory.mkdir(parents=True)
             image_file_name = f"slavesim-{asset_version}-linux-{arch}-image.tar.gz"
@@ -209,7 +220,7 @@ def prepare(*, input_dir: Path, output_dir: Path, version: str, channel: str,
         write_immutable(output_dir / "SHA256SUMS", ("\n".join(checksum_lines) + "\n").encode())
         write_immutable(output_dir / "release.json", json_bytes(manifest))
         write_immutable(output_dir / "latest.json", json_bytes(manifest))
-    print(f"已生成 {channel} {version} 双架构发布包: {output_dir}")
+    print(f"已生成 {channel} {version} 发布包（{', '.join(architectures)}）: {output_dir}")
     return manifest
 
 
@@ -279,7 +290,9 @@ def list_channel_objects(bucket: str, endpoint: str, channel_root: str) -> set[s
 
 
 def cleanup_old_versions(*, bucket: str, endpoint: str, channel_root: str, keep_keys: set[str],
-                         manifest: dict, latest_url: str) -> int:
+                         manifest: dict, latest_url: str,
+                         architectures: tuple[str, ...] | list[str] = ARCHES) -> int:
+    architectures = selected_architectures(architectures)
     # 仅使用发布器已验证的精确对象键；不对桶或前缀执行递归删除。
     if not channel_root.endswith("/") or not keep_keys or any(
             not key.startswith(channel_root) for key in keep_keys):
@@ -289,29 +302,38 @@ def cleanup_old_versions(*, bucket: str, endpoint: str, channel_root: str, keep_
         raise ValueError("R2 最新版本对象缺失，拒绝清理")
     if get_json(latest_url) != manifest:
         raise ValueError("公开入口已变化，拒绝清理旧版本")
-    obsolete = sorted(keys - keep_keys)
+    obsolete = keys - keep_keys
+    if architectures != ARCHES:
+        # 单架构发布只清理该平台的旧资产；其他平台与共享版本清单、摘要继续保留。
+        # 使用相对键的架构段精确判断，不能凭文件名或子串匹配删除。
+        obsolete = {key for key in obsolete
+                    if len(parts := key.removeprefix(channel_root).split("/")) >= 3
+                    and parts[1] in architectures}
+    remaining = keys - obsolete
+    obsolete = sorted(obsolete)
     for key in obsolete:
         print(f"删除 R2 旧对象: {key}")
         subprocess.run(["aws", "s3api", "delete-object", "--bucket", bucket, "--key", key,
                         "--endpoint-url", endpoint, "--region", "auto", "--output", "json"],
                        check=True, capture_output=True)
-    if list_channel_objects(bucket, endpoint, channel_root) != keep_keys:
+    if list_channel_objects(bucket, endpoint, channel_root) != remaining:
         raise ValueError("R2 清理后对象列表与保留列表不一致，请重跑发布")
     print(f"R2 通道清理完成: 前缀={channel_root} 保留版本={manifest['version']} "
-          f"删除对象={len(obsolete)} 保留对象={len(keep_keys)}")
+          f"删除对象={len(obsolete)} 保留对象={len(remaining)}")
     return len(obsolete)
 
 
 def publish(*, output_dir: Path, bucket: str, prefix: str, endpoint: str,
-            public_base_url: str) -> dict:
+            public_base_url: str, architectures: tuple[str, ...] | list[str] = ARCHES) -> dict:
+    architectures = selected_architectures(architectures)
     output_dir = Path(output_dir)
     manifest = json.loads((output_dir / "release.json").read_text(encoding="utf-8"))
     prefix, base = metadata(manifest["version"], manifest["channel"], manifest["commit"], prefix, public_base_url)
     timestamp(manifest["published_at"])
     if manifest.get("schema_version") != 1 or manifest.get("project") != "slavesim":
         raise ValueError("发布清单项目或 schema_version 不合法")
-    if set(manifest.get("platforms", {})) != {"linux-" + arch for arch in ARCHES}:
-        raise ValueError("发布清单必须包含 amd64 和 arm64 两个架构")
+    if set(manifest.get("platforms", {})) != {"linux-" + arch for arch in architectures}:
+        raise ValueError("发布清单平台必须与本次选择的架构完全一致")
     if not re.fullmatch(r"[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]", bucket):
         raise ValueError("R2 存储桶名称不合法")
     # endpoint 独立于公开地址，允许 S3 兼容服务路径，但不允许凭据或明文连接。
@@ -328,7 +350,7 @@ def publish(*, output_dir: Path, bucket: str, prefix: str, endpoint: str,
     version_key = f"{prefix}/{manifest['channel']}/{asset_version}"
     immutable_url = encoded_url(base, version_key + "/release.json")
     assets = []
-    for arch in ARCHES:
+    for arch in architectures:
         entry = manifest["platforms"]["linux-" + arch]
         if entry.get("image") != image_name(manifest["version"], arch) or not re.fullmatch(r"sha256:[0-9a-f]{64}", entry.get("image_id", "")):
             raise ValueError(f"{arch} 镜像身份不合法")
@@ -387,13 +409,14 @@ def publish(*, output_dir: Path, bucket: str, prefix: str, endpoint: str,
     cleanup_old_versions(bucket=bucket, endpoint=endpoint,
                          channel_root=f"{prefix}/{manifest['channel']}/",
                          keep_keys={latest_key, version_key + "/release.json", *(key for _, key, *_ in assets)},
-                         manifest=manifest, latest_url=encoded_url(base, latest_key))
+                         manifest=manifest, latest_url=encoded_url(base, latest_key),
+                         architectures=architectures)
     print(f"R2 发布完成: {encoded_url(base, latest_key)}")
     return manifest
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="slaveSim 双架构静态发布")
+    parser = argparse.ArgumentParser(description="slaveSim 静态发布（默认 amd64 与 arm64）")
     commands = parser.add_subparsers(dest="command", required=True)
     pack = commands.add_parser("prepare", help="生成发布包和清单")
     pack.add_argument("--input-dir", type=Path, default=Path("dist"))
@@ -402,6 +425,7 @@ def main() -> None:
         pack.add_argument("--" + name, required=True)
     pack.add_argument("--prefix", default="slavesim")
     pack.add_argument("--published-at")
+    pack.add_argument("--architectures", nargs="+", choices=ARCHES, default=ARCHES)
     send = commands.add_parser("publish", help="发布版本资产和最新清单到 R2")
     send.add_argument("--output-dir", type=Path, default=Path("release"))
     send.add_argument("--bucket", required=True)
@@ -410,6 +434,7 @@ def main() -> None:
     connection.add_argument("--endpoint")
     connection.add_argument("--account-id")
     send.add_argument("--public-base-url", required=True)
+    send.add_argument("--architectures", nargs="+", choices=ARCHES, default=ARCHES)
     args = vars(parser.parse_args())
     command = args.pop("command")
     try:
