@@ -1,8 +1,8 @@
 # GitLab 持续集成
 
-当前 GitLab 流水线验证 Linux amd64。合并请求执行检查与二进制构建；受保护 `master` 的推送和手动流水线在镜像验证成功后，复用 GitHub 已有发布工具，将 x64 产物上传到原 R2 测试通道。ARM64 构建尚未接入；现有 GitHub 工作流保留。
+当前由 `.gitlab-ci.yml` 验证 Linux amd64。合并请求执行元数据、检查与二进制构建三个作业；受保护 `master` 的推送和手动流水线执行全部五个作业，在镜像验证成功后将 x64 产物上传到原 R2 测试通道。ARM64 构建、原生验证与 stable 自动发布尚未接入。
 
-## 与 GitHub 流程对应
+## 流水线阶段
 
 | 阶段 | GitLab 作业 | 执行内容 |
 | --- | --- | --- |
@@ -16,7 +16,7 @@
 
 二进制作业保存 `dist/amd64/` 下的 `slavesim`、`probe`、`metadata.json` 与 `SHA256SUMS`。镜像作业继续保留这些文件，并增加 `slavesim-image.tar.gz`、`image-id.txt` 和 `smoke-runtime.log`，更新校验信息。
 
-当前不处理 `v*` 标签和 stable 通道。GitLab 显式使用 `--architectures amd64` 发布；原 GitHub 不传此参数时，仍要求双架构齐全。
+当前不处理 `v*` 标签和 stable 通道。GitLab 显式使用 `--architectures amd64` 发布；手动调用 `scripts/release.py prepare/publish` 不传此参数时，仍默认要求 amd64、arm64 双架构齐全。
 
 ## R2 发布
 

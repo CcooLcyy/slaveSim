@@ -88,13 +88,13 @@ def build_metadata(channel: str, commit: str, base_version: str,
 def main() -> None:
     parser = argparse.ArgumentParser(description="生成 slaveSim CI 版本元数据")
     parser.add_argument("--commit", required=True, help="完整来源提交 SHA")
-    parser.add_argument("--github-output", type=Path, help="GitHub Actions 步骤输出文件")
+    parser.add_argument("--output", type=Path, help="以 key=value 格式写入构建元数据文件")
     args = parser.parse_args()
     try:
         base = read_base_version(Path(__file__).resolve().parents[1] / "VERSION")
         data = build_metadata("ci", args.commit, base)
-        if args.github_output:
-            with args.github_output.open("a", encoding="utf-8", newline="\n") as output:
+        if args.output:
+            with args.output.open("a", encoding="utf-8", newline="\n") as output:
                 for key, value in data.items():
                     output.write(f"{key}={value}\n")
         print(f"构建元数据：版本={data['version']} 提交={data['commit']} 时间={data['published_at']} 镜像标签={data['image_tag']}")

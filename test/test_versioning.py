@@ -80,11 +80,11 @@ class VersioningTests(unittest.TestCase):
                     versioning.read_base_version(path)
 
     # 工作流 CLI 写出可直接复用的元数据，版本中的时间与清单发布时间一致。
-    def test_cli_github_output(self):
+    def test_cli_metadata_output(self):
         with tempfile.TemporaryDirectory() as temp:
             output = Path(temp) / "outputs"
             result = subprocess.run([sys.executable, str(ROOT / "scripts/versioning.py"),
-                                    "--commit", COMMIT, "--github-output", str(output)],
+                                    "--commit", COMMIT, "--output", str(output)],
                                     capture_output=True, text=True, encoding="utf-8")
             self.assertEqual(result.returncode, 0, result.stderr)
             data = dict(line.split("=", 1) for line in output.read_text(encoding="utf-8").splitlines())

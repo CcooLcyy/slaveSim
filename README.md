@@ -69,24 +69,27 @@ scp slavesim-arm64.tar.gz <设备>:~/
 gunzip -c slavesim-arm64.tar.gz | sudo docker load
 ```
 
-也可以直接用 CI 产出的 arm64 二进制（产物名 `slavesim-linux-arm64`），设备上无需 Docker：
+也可以手动交叉编译 arm64 二进制，设备上无需 Docker。当前 GitLab CI 只产出 amd64；arm64 尚未接入自动构建与原生测试：
 
 ```bash
+GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -o slavesim-linux-arm64 .
+# 将二进制传到设备后运行
 ./slavesim-linux-arm64 -config config.json -http :16000
 ```
 
 ### 持续集成
 
-`.github/workflows/ci.yml` 在两个**原生** runner 上跑同一套 `go vet` / `go test` / `go build`：
+`.gitlab-ci.yml` 复用标签为 `linux`、`amd64`、`docker` 的共享 Runner，验证 Linux amd64：
 
-| Job | Runner | 产出 |
+| Job | 触发范围 | 内容与产出 |
 | --- | --- | --- |
-| `x64` | `ubuntu-latest` | `slavesim-linux-amd64` |
-| `arm64` | `ubuntu-24.04-arm` | `slavesim-linux-arm64` |
-| `docker-cross` | `ubuntu-latest` | 验证 `--platform linux/arm64` 交叉构建镜像 |
+| `metadata` | MR、master 推送或手动流水线 | 共享版本、提交与构建时间 |
+| `test` | MR、master 推送或手动流水线 | Go 静态检查与 race/PTY 测试、全部前端和 Python 工具测试 |
+| `build-binary` | MR、master 推送或手动流水线 | `dist/amd64/slavesim`、`probe` 与校验信息 |
+| `build-image` | 受保护 master 推送或手动流水线 | amd64 完整镜像包及镜像内真实 PTY 验证 |
+| `publish-r2` | 受保护 master 推送或手动流水线 | x64 二进制包、镜像包与 R2 测试通道清单 |
 
-arm64 用的是 GitHub 托管的 arm64 runner，所以 `internal/sim/bus_test.go` 里那些
-**走真实 PTY 的集成测试是在 arm64 上真跑**，而不是交叉编译完就不验证。
+MR 执行前三个作业；受保护 master 执行全部五个作业。当前真实 PTY 验证范围是 x64，ARM64 原生测试与 stable 自动发布尚未接入。工具镜像、BuildKit 和发布门禁见 [GitLab 持续集成](doc/GitLab持续集成.md)。
 
 启动后访问 `http://<主机>:16000` 打开界面。
 
@@ -131,14 +134,14 @@ go test ./...
 
 ## R2 发布与自动更新
 
-基础版本由根目录 `VERSION` 管理，当前为 `0.0.1`。本地普通构建显示 `0.0.1-dev`，CI 测试版采用上位机的编号风格：`0.0.1-ci.20261010t083000+sha.abcdef1`（时间为 UTC，提交号取前 7 位）。CI 与发布工作流都为两个架构注入同一份版本元数据。
+基础版本由根目录 `VERSION` 管理，当前为 `0.0.1`。本地普通构建显示 `0.0.1-dev`，CI 测试版采用上位机的编号风格：`0.0.1-ci.20261010t083000+sha.abcdef1`（时间为 UTC，提交号取前 7 位）。GitLab 各作业使用同一份版本元数据。
 
-推送 `master` 后，GitHub Actions 自动将双架构二进制包和 Docker 镜像包发布到 R2 的 `slavesim/ci` 通道；正式标签 `vX.Y.Z` 发布到 `slavesim/stable`。首次使用需要配置三个 R2 Actions Secrets。
+推送受保护 `master` 或在该分支手动运行 GitLab 流水线后，检查、二进制构建和镜像验证均成功才发布 x64 二进制包与 Docker 镜像包到原 R2 `slavesim/ci` 通道。发布使用 GitLab CI/CD 中受保护、掩码的 R2 凭据。最新清单只包含 amd64；旧 ARM64 资产保留，ARM64 自动更新暂未接入。
 
-正式标签须与该提交的 `VERSION` 一致；Docker 标签和资产路径把版本中的 `+` 转为 `_`。旧 CI 编号仍可读取，已部署设备须先单独迁移更新脚本与共享版本模块，详见 [版本编号与迁移](doc/版本编号方案.md)。
+当前标签不会触发 stable 发布。`scripts/release.py` 仍支持手动准备与发布，默认要求双架构，显式使用 `--architectures amd64` 可发布单架构。Docker 标签和资产路径把版本中的 `+` 转为 `_`。旧 CI 编号仍可读取，已部署设备须先单独迁移更新脚本与共享版本模块，详见 [版本编号与迁移](doc/版本编号方案.md)。
 
 - [测试通道清单](https://pub-19f3d71852b04011b120b1b814141c12.r2.dev/slavesim/ci/latest.json)
-- [稳定通道清单](https://pub-19f3d71852b04011b120b1b814141c12.r2.dev/slavesim/stable/latest.json)（首次正式发版后可用）
+- [稳定通道清单](https://pub-19f3d71852b04011b120b1b814141c12.r2.dev/slavesim/stable/latest.json)（由人工正式发布维护，当前流水线不更新）
 
 容器内的常驻管理进程提供“检查更新”和“更新到最新版”按钮。默认更新源为上述测试通道，可通过挂载 `updater.json` 的 `manifest_url` 配置。检查与安装均由用户手动触发；下载并校验二进制包后，仅重启模拟器子进程，容器和镜像保持不变。配置、日志与 `runtime/` 中的已安装版本持久保存，健康检查失败会回滚。容器重启后仍使用已安装版本。
 
