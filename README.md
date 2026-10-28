@@ -65,7 +65,7 @@ docker compose up -d --build
 ### 构建 arm64 镜像（部署到设备）
 
 下位机设备是 arm64，通常需要在 x64 机器上交叉构建。运行阶段使用目标架构的 Python 镜像且不含
-任何 `RUN` 指令，**整个过程不需要 qemu**，只是让 Go 换一个目标架构编译：
+任何 `RUN` 指令，**下面的镜像交叉构建不需要 QEMU**，只是让 Go 换一个目标架构编译。CI 还会执行镜像内运行验证，该步骤在 x64 环境中需要 QEMU：
 
 ```bash
 docker build --platform linux/arm64 -t slavesim:arm64 .
@@ -78,7 +78,7 @@ scp slavesim-arm64.tar.gz <设备>:~/
 gunzip -c slavesim-arm64.tar.gz | sudo docker load
 ```
 
-也可以手动交叉编译 arm64 二进制，设备上无需 Docker。当前 GitLab CI 只产出 amd64；arm64 尚未接入自动构建与原生测试：
+也可以手动交叉编译 arm64 二进制，设备上无需 Docker。GitLab CI 统一构建、验证和发布 amd64、arm64；ARM64 镜像在 QEMU 下验证，尚未接入 ARM64 原生测试：
 
 ```bash
 GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -o slavesim-linux-arm64 .
@@ -88,17 +88,17 @@ GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -o slavesim-linux-arm64
 
 ### 持续集成
 
-`.gitlab-ci.yml` 复用标签为 `linux`、`amd64`、`docker` 的共享 Runner，验证 Linux amd64：
+`.gitlab-ci.yml` 复用标签为 `linux`、`amd64`、`docker` 的共享 Runner，以双架构矩阵构建 Linux amd64、arm64：
 
 | Job | 触发范围 | 内容与产出 |
 | --- | --- | --- |
 | `metadata` | MR、master 推送或手动流水线 | 共享版本、提交与构建时间 |
 | `test` | MR、master 推送或手动流水线 | Go 静态检查与 race/PTY 测试、全部前端和 Python 工具测试 |
-| `build-binary` | MR、master 推送或手动流水线 | `dist/amd64/slavesim`、`probe` 与校验信息 |
-| `build-image` | 受保护 master 推送或手动流水线 | amd64 完整镜像包及镜像内真实 PTY 验证 |
-| `publish-r2` | 受保护 master 推送或手动流水线 | x64 二进制包、镜像包与 R2 测试通道清单 |
+| `build-binary` | MR、master 推送或手动流水线 | amd64、arm64 矩阵，`dist/<架构>/slavesim`、`probe` 与校验信息 |
+| `build-image` | 受保护 master 推送或手动流水线 | amd64、arm64 完整镜像包及各自镜像内真实 PTY 验证 |
+| `publish-r2` | 受保护 master 推送或手动流水线 | 两架构全部验证通过后，统一发布二进制包、镜像包与 R2 测试通道清单 |
 
-MR 执行前三个作业；受保护 master 执行全部五个作业。当前真实 PTY 验证范围是 x64，ARM64 原生测试与 stable 自动发布尚未接入。工具镜像、BuildKit 和发布门禁见 [GitLab 持续集成](doc/GitLab持续集成.md)。
+MR 执行元数据、通用测试与双架构二进制构建；受保护 master 继续执行双架构镜像验证和统一发布。通用测试在 amd64 上执行；ARM64 镜像运行验证使用 QEMU，不代表 ARM64 真机验证。ARM64 原生测试与 stable 自动发布尚未接入。工具镜像、BuildKit 和发布门禁见 [GitLab 持续集成](doc/GitLab持续集成.md)。
 
 启动后访问 `http://<主机>:16000` 打开界面。
 
@@ -145,7 +145,7 @@ go test ./...
 
 基础版本由根目录 `VERSION` 管理，当前为 `0.0.1`。本地普通构建显示 `0.0.1-dev`，CI 测试版采用上位机的编号风格：`0.0.1-ci.20261010t083000+sha.abcdef1`（时间为 UTC，提交号取前 7 位）。GitLab 各作业使用同一份版本元数据。
 
-推送受保护 `master` 或在该分支手动运行 GitLab 流水线后，检查、二进制构建和镜像验证均成功才发布 x64 二进制包与 Docker 镜像包到原 R2 `slavesim/ci` 通道。发布使用 GitLab CI/CD 中受保护、掩码的 R2 凭据。最新清单只包含 amd64；旧 ARM64 资产保留，ARM64 自动更新暂未接入。
+推送受保护 `master` 或在该分支手动运行 GitLab 流水线后，检查、两架构二进制构建和镜像验证均成功才统一发布 amd64、arm64 二进制包与 Docker 镜像包到原 R2 `slavesim/ci` 通道。发布使用 GitLab CI/CD 中受保护、掩码的 R2 凭据。最新清单同时包含两架构，设备按自身架构获取更新；成功后按双架构规则清理旧 CI 版本资产。
 
 当前标签不会触发 stable 发布。`scripts/release.py` 仍支持手动准备与发布，默认要求双架构，显式使用 `--architectures amd64` 可发布单架构。Docker 标签和资产路径把版本中的 `+` 转为 `_`。旧 CI 编号仍可读取，已部署设备须先单独迁移更新脚本与共享版本模块，详见 [版本编号与迁移](doc/版本编号方案.md)。
 

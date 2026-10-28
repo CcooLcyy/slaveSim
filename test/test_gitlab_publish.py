@@ -29,12 +29,15 @@ class GitLabPublishTests(unittest.TestCase):
                         CI_COMMIT_BRANCH="master", CI_COMMIT_REF_PROTECTED="true", CI_PIPELINE_SOURCE="push",
                         R2_ACCOUNT_ID="a" * 32, R2_ACCESS_KEY_ID="test-access-key",
                         R2_SECRET_ACCESS_KEY="test-secret-key")
-        for name in ("slavesim", "probe", "slavesim-image.tar.gz", "image-id.txt"):
-            (self.folder / name).write_bytes(b"test-release-input")
-        (self.folder / "metadata.json").write_text(json.dumps(self.data), encoding="utf-8")
-        gitlab_ci.checksums(self.folder)
+        for arch in ("amd64", "arm64"):
+            folder = self.root / "dist" / arch
+            folder.mkdir(parents=True, exist_ok=True)
+            for name in ("slavesim", "probe", "slavesim-image.tar.gz", "image-id.txt"):
+                (folder / name).write_bytes(b"test-release-input")
+            (folder / "metadata.json").write_text(json.dumps(self.data), encoding="utf-8")
+            gitlab_ci.checksums(folder)
 
-    # 使用既有前缀和 x64 架构打包再发布，密钥仅通过子进程环境传递。
+    # 两个架构使用同一版本统一打包发布，密钥仅通过子进程环境传递。
     def test_publish_reuses_existing_r2_contract_without_exposing_credentials(self):
         output = io.StringIO()
         with patch.object(gitlab_ci.subprocess, "run") as run, redirect_stdout(output):
@@ -44,7 +47,8 @@ class GitLabPublishTests(unittest.TestCase):
         for call, action in ((prepare, "prepare"), (publish, "publish")):
             args = call.args[0]
             self.assertIn(action, args)
-            self.assertEqual(args[args.index("--architectures") + 1], "amd64")
+            start = args.index("--architectures") + 1
+            self.assertEqual(args[start:start + 2], ["amd64", "arm64"])
             self.assertEqual(args[args.index("--prefix") + 1], "slavesim")
             self.assertTrue(call.kwargs["check"])
             self.assertNotIn("test-access-key", " ".join(args))
@@ -61,6 +65,30 @@ class GitLabPublishTests(unittest.TestCase):
         self.assertEqual(env["AWS_RESPONSE_CHECKSUM_VALIDATION"], "when_required")
         self.assertIn("https://pub-19f3d71852b04011b120b1b814141c12.r2.dev/slavesim/ci/latest.json", output.getvalue())
         self.assertNotIn("test-secret-key", output.getvalue())
+
+    # ARM64 缺少镜像或元数据不属于当前提交时，不能先发布 x64。
+    def test_incomplete_arm64_never_starts_publication(self):
+        folder = self.root / "dist/arm64"
+        image = folder / "slavesim-image.tar.gz"
+        image.unlink()
+        gitlab_ci.checksums(folder)
+        with patch.object(gitlab_ci.subprocess, "run") as run:
+            with self.assertRaises(ValueError):
+                gitlab_ci.publish_release(self.root, self.env)
+            run.assert_not_called()
+        image.write_bytes(b"test-release-input")
+        gitlab_ci.checksums(folder)
+        (folder / "probe").write_bytes(b"tampered-arm64-probe")
+        with patch.object(gitlab_ci.subprocess, "run") as run:
+            with self.assertRaises(ValueError):
+                gitlab_ci.publish_release(self.root, self.env)
+            run.assert_not_called()
+        (folder / "metadata.json").write_text(json.dumps(dict(self.data, commit="b" * 40)))
+        gitlab_ci.checksums(folder)
+        with patch.object(gitlab_ci.subprocess, "run") as run:
+            with self.assertRaises(ValueError):
+                gitlab_ci.publish_release(self.root, self.env)
+            run.assert_not_called()
 
     # MR、非主分支、未保护分支和其他来源均不得调用发布器。
     def test_ineligible_pipeline_fails_before_external_commands(self):

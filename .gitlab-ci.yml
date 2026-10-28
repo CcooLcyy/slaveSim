@@ -56,6 +56,9 @@ test:
 build-binary:
   stage: build
   timeout: 15 minutes
+  parallel:
+    matrix:
+      - TARGETARCH: [amd64, arm64]
   needs:
     - job: metadata
       artifacts: true
@@ -65,13 +68,16 @@ build-binary:
     - python3 scripts/gitlab_ci.py build
   artifacts:
     paths:
-      - dist/amd64/
+      - dist/$TARGETARCH/
     expire_in: 7 days
 
 build-image:
   stage: build
   timeout: 30 minutes
-  resource_group: slavesim-ci-image-amd64
+  parallel:
+    matrix:
+      - TARGETARCH: [amd64, arm64]
+  resource_group: slavesim-ci-image-$TARGETARCH
   needs:
     - job: metadata
       artifacts: true
@@ -90,7 +96,7 @@ build-image:
   artifacts:
     when: always
     paths:
-      - dist/amd64/
+      - dist/$TARGETARCH/
     expire_in: 7 days
 
 publish-r2:

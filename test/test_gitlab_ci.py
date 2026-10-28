@@ -1,4 +1,4 @@
-"""验证 GitLab x64 构建身份、运行验证与 BuildKit 凭据边界。"""
+"""验证 GitLab 双架构构建身份、运行验证与 BuildKit 凭据边界。"""
 import base64
 import hashlib
 import json
@@ -31,6 +31,12 @@ def buildkit_env():
                             ("BUILDKIT_CERT_B64", b"test-cert"), ("BUILDKIT_KEY_B64", b"test-key"))})
 
 
+def build_info(env, arch, *, probe=False):
+    # Go 1.24 的 trimpath 构建不会保留 ldflags，版本身份在目标镜像内真实执行检查。
+    return (f"slavesim: go1.24.0\n\tpath\tslavesim\n\tbuild\t-trimpath=true\n"
+            f"\tbuild\tGOOS=linux\n\tbuild\tGOARCH={arch}\n\tbuild\tCGO_ENABLED=0\n")
+
+
 class GitLabCiTests(unittest.TestCase):
     # dotenv 可完整传给后续作业，采用大写变量且没有 Windows 行尾或 BOM。
     def test_metadata_dotenv_round_trip(self):
@@ -61,20 +67,32 @@ class GitLabCiTests(unittest.TestCase):
             with self.subTest(field=key, value=value), self.assertRaises(ValueError):
                 gitlab_ci.load_metadata(dict(original, **{key: value}))
 
-    # 临时 Dockerfile 保留生产构建，仅追加真实运行验证与导出标记阶段。
+    # 临时 Dockerfile 必须使用本次交叉编译产物，验证后导出的也是同一份程序。
     def test_smoke_dockerfile_preserves_runtime_and_requires_nonce(self):
         source = (ROOT / "Dockerfile").read_text(encoding="utf-8")
         result = gitlab_ci.make_ci_dockerfile(source)
-        self.assertTrue(result.startswith(source.replace("FROM ${PYTHON_IMAGE}",
-                                                        "FROM ${PYTHON_IMAGE} AS ci-runtime", 1)))
+        runtime = result.split("FROM ${PYTHON_IMAGE} AS ci-runtime\n", 1)[1].split(
+            "FROM ci-runtime AS ci-smoke\n", 1)[0]
+        self.assertIn("ARG TARGETARCH", runtime)
+        self.assertIn("COPY dist/${TARGETARCH}/slavesim /slavesim", runtime)
+        self.assertIn("COPY dist/${TARGETARCH}/probe /probe", runtime)
+        self.assertNotIn("COPY --from=builder", runtime)
+        for line in source.split("FROM ${PYTHON_IMAGE}\n", 1)[1].splitlines():
+            if line and not line.startswith("COPY --from=builder"):
+                self.assertIn(line, runtime)
+        self.assertEqual(source, (ROOT / "Dockerfile").read_text(encoding="utf-8"))
         smoke = result.split("FROM ci-runtime AS ci-smoke\n", 1)[1]
         self.assertIn("ARG CI_SMOKE_NONCE", smoke)
         self.assertIn('RUN test -n "$CI_SMOKE_NONCE" && /slavesim -version', smoke)
         self.assertIn("python3 -B /ci-smoke-runtime.py", smoke)
+        for variable in ("VERSION", "COMMIT", "BUILD_TIME", "ARCH"):
+            self.assertIn("CI_EXPECTED_" + variable, smoke)
         self.assertIn('"$CI_SMOKE_NONCE" > /ci-smoke-ok', smoke)
         self.assertIn("FROM scratch AS ci-smoke-result", smoke)
         self.assertIn("COPY --from=ci-smoke /ci-smoke-ok /ci-smoke-ok", smoke)
-        for invalid in ("FROM alpine\n", "FROM ${PYTHON_IMAGE}\nFROM ${PYTHON_IMAGE}\n"):
+        for invalid in ("FROM alpine\n", "FROM ${PYTHON_IMAGE}\nFROM ${PYTHON_IMAGE}\n",
+                        source.replace("COPY --from=builder /out/slavesim /slavesim", ""),
+                        source.replace("COPY --from=builder /out/probe /probe", "")):
             with self.subTest(source=invalid), self.assertRaises(ValueError):
                 gitlab_ci.make_ci_dockerfile(invalid)
 
@@ -122,31 +140,76 @@ class GitLabCiTests(unittest.TestCase):
                 with gitlab_ci.buildkit_client(dict(buildkit_env(), **{key: "%%%invalid%%%"})):
                     self.fail("编码非法不应创建客户端")
 
-    # 构建固定为无 CGO 的 Linux x64，并为全部二进制与元数据生成校验和。
+    # 两个架构均交叉编译并读取构建信息，不在 x64 Runner 直接执行目标程序。
     def test_binary_build_target_and_checksums(self):
-        env = metadata_env()
-        def fake_build(command, **kwargs):
-            self.assertEqual(kwargs["env"]["CGO_ENABLED"], "0")
-            self.assertEqual(kwargs["env"]["GOOS"], "linux")
-            self.assertEqual(kwargs["env"]["GOARCH"], "amd64")
-            self.assertTrue(kwargs["check"])
-            Path(command[command.index("-o") + 1]).write_bytes(b"test-binary")
-        with tempfile.TemporaryDirectory() as directory, \
-                patch.object(gitlab_ci.subprocess, "run", side_effect=fake_build) as run, \
-                patch.object(gitlab_ci.subprocess, "check_output", return_value=" ".join(
-                    env[key] for key in ("VERSION", "COMMIT", "BUILD_TIME"))):
-            root = Path(directory)
-            data = gitlab_ci.build_binaries(root, env)
-            self.assertEqual([call.args[0][-1] for call in run.call_args_list], [".", "./cmd/probe"])
-            folder = root / "dist/amd64"
-            self.assertEqual(json.loads((folder / "metadata.json").read_text()), data)
-            sums = dict(line.split("  ", 1)[::-1] for line in (folder / "SHA256SUMS").read_text().splitlines())
-            self.assertEqual(set(sums), {"slavesim", "probe", "metadata.json"})
-            for name, digest in sums.items():
-                self.assertEqual(digest, hashlib.sha256((folder / name).read_bytes()).hexdigest())
+        for arch in ("amd64", "arm64"):
+            env = dict(metadata_env(), TARGETARCH=arch)
+            def fake_build(command, **kwargs):
+                self.assertEqual(kwargs["env"]["CGO_ENABLED"], "0")
+                self.assertEqual(kwargs["env"]["GOOS"], "linux")
+                self.assertEqual(kwargs["env"]["GOARCH"], arch)
+                self.assertTrue(kwargs["check"])
+                Path(command[command.index("-o") + 1]).write_bytes(b"test-binary")
+            def fake_info(command, **kwargs):
+                self.assertEqual(command[:3], ["go", "version", "-m"])
+                return build_info(env, arch, probe=Path(command[-1]).name == "probe")
+            with self.subTest(arch=arch), tempfile.TemporaryDirectory() as directory, \
+                    patch.object(gitlab_ci.subprocess, "run", side_effect=fake_build) as run, \
+                    patch.object(gitlab_ci.subprocess, "check_output", side_effect=fake_info) as info:
+                root = Path(directory)
+                data = gitlab_ci.build_binaries(root, env)
+                self.assertEqual([call.args[0][-1] for call in run.call_args_list], [".", "./cmd/probe"])
+                self.assertEqual(info.call_count, 2)
+                folder = root / "dist" / arch
+                self.assertEqual(json.loads((folder / "metadata.json").read_text()), data)
+                sums = dict(line.split("  ", 1)[::-1] for line in (folder / "SHA256SUMS").read_text().splitlines())
+                self.assertEqual(set(sums), {"slavesim", "probe", "metadata.json"})
+                for name, digest in sums.items():
+                    self.assertEqual(digest, hashlib.sha256((folder / name).read_bytes()).hexdigest())
 
-    # 编译成功但版本身份错误时不得生成可供后续镜像任务消费的元数据。
-    def test_binary_version_mismatch_fails_before_metadata(self):
+    # 非法架构不能拼接产物目录或执行任何构建命令。
+    def test_invalid_architecture_never_executes_commands(self):
+        for arch in ("", "riscv64", "../arm64", "ARM64"):
+            for action in (gitlab_ci.build_binaries, gitlab_ci.build_image):
+                with self.subTest(arch=arch, action=action.__name__), tempfile.TemporaryDirectory() as directory, \
+                        patch.object(gitlab_ci.subprocess, "run") as run, \
+                        patch.object(gitlab_ci.subprocess, "check_output") as info:
+                    with self.assertRaises(ValueError):
+                        action(Path(directory), dict(metadata_env(), TARGETARCH=arch))
+                    run.assert_not_called()
+                    info.assert_not_called()
+
+    # 架构、操作系统、CGO 字段被篡改或丢失时，不生成可发布元数据。
+    def test_binary_build_info_identity_is_strict(self):
+        env = dict(metadata_env(), TARGETARCH="arm64")
+        original = build_info(env, "arm64")
+        invalid = [original.replace(before, after) for before, after in (
+            ("GOARCH=arm64", "GOARCH=amd64"), ("GOOS=linux", "GOOS=windows"),
+            ("CGO_ENABLED=0", "CGO_ENABLED=1"), ("GOARCH=arm64", ""),
+            ("GOOS=linux", ""), ("CGO_ENABLED=0", ""))]
+        for content in invalid:
+            with self.subTest(content=content), tempfile.TemporaryDirectory() as directory, \
+                    patch.object(gitlab_ci.subprocess, "run"), \
+                    patch.object(gitlab_ci.subprocess, "check_output", return_value=content):
+                root = Path(directory)
+                with self.assertRaises(ValueError):
+                    gitlab_ci.build_binaries(root, env)
+                self.assertFalse((root / "dist/arm64/metadata.json").exists())
+
+    # 模拟器正确而探针为其他架构时，同样禁止生成元数据。
+    def test_probe_wrong_architecture_is_rejected(self):
+        env = dict(metadata_env(), TARGETARCH="arm64")
+        with tempfile.TemporaryDirectory() as directory, \
+                patch.object(gitlab_ci.subprocess, "run"), \
+                patch.object(gitlab_ci.subprocess, "check_output", side_effect=[
+                    build_info(env, "arm64"), build_info(env, "amd64", probe=True)]):
+            root = Path(directory)
+            with self.assertRaises(ValueError):
+                gitlab_ci.build_binaries(root, env)
+            self.assertFalse((root / "dist/arm64/metadata.json").exists())
+
+    # 编译成功但构建信息无法解析时，不生成可供后续镜像任务消费的元数据。
+    def test_binary_invalid_build_info_fails_before_metadata(self):
         with tempfile.TemporaryDirectory() as directory, \
                 patch.object(gitlab_ci.subprocess, "run"), \
                 patch.object(gitlab_ci.subprocess, "check_output", return_value="slavesim development"):
@@ -176,19 +239,24 @@ class GitLabCiTests(unittest.TestCase):
 
     # 每次镜像验证携带当前作业编号，旧缓存标记不能解锁运行镜像导出。
     def test_image_smoke_uses_job_nonce_and_rejects_stale_marker(self):
-        for marker in ("123", "122"):
-            with self.subTest(marker=marker), tempfile.TemporaryDirectory() as directory:
+        for arch, marker in (("amd64", "123"), ("amd64", "122"), ("arm64", "123"), ("arm64", "122")):
+            with self.subTest(arch=arch, marker=marker), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
-                folder = root / "dist/amd64"
+                folder = root / "dist" / arch
                 folder.mkdir(parents=True)
-                env = dict(metadata_env(), **buildkit_env())
+                env = dict(metadata_env(), TARGETARCH=arch, **buildkit_env())
                 data = gitlab_ci.load_metadata(env)
                 (folder / "metadata.json").write_text(json.dumps(data))
-                (root / "Dockerfile").write_text("FROM ${PYTHON_IMAGE}\n")
+                (root / "Dockerfile").write_text((ROOT / "Dockerfile").read_text(encoding="utf-8"), encoding="utf-8")
                 (root / ".dockerignore").write_text("scripts/\n")
                 for name in ("slavesim", "probe"):
                     (folder / name).write_bytes(b"test-binary")
                 def fake_logged(command, log, workdir):
+                    self.assertIn("platform=linux/" + arch, command)
+                    dockerfile_arg = next(item for item in command if item.startswith("dockerfile="))
+                    ignore = (Path(dockerfile_arg.split("=", 1)[1]) / "Dockerfile.dockerignore").read_text(encoding="utf-8")
+                    for item in ("!dist", "!dist/" + arch, "!dist/" + arch + "/slavesim", "!dist/" + arch + "/probe"):
+                        self.assertIn(item, ignore.splitlines())
                     destination = command[command.index("--output") + 1]
                     if destination.startswith("type=local,"):
                         self.assertIn("build-arg:CI_SMOKE_NONCE=123", command)
@@ -197,6 +265,7 @@ class GitLabCiTests(unittest.TestCase):
                         (result / "ci-smoke-ok").write_text(marker)
                     else:
                         self.assertIn("target=ci-runtime", command)
+                        self.assertIn("name=" + gitlab_ci.image_name(data["version"], arch) + ",", destination)
                         Path(destination.split("dest=", 1)[1]).write_bytes(b"test-image")
                 with patch.object(gitlab_ci, "run_logged", side_effect=fake_logged) as run, \
                         patch.object(gitlab_ci.subprocess, "check_output", side_effect=["1792724645", "sha256:test-image"]):

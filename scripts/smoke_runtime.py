@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+import platform
 import subprocess
 import sys
 import tempfile
@@ -10,7 +11,24 @@ import time
 from urllib.request import urlopen
 
 
+def verify_runtime_identity(env):
+    fields = ("VERSION", "COMMIT", "BUILD_TIME", "ARCH")
+    values = {key: env.get("CI_EXPECTED_" + key) for key in fields}
+    if not all(values.values()):
+        raise ValueError("镜像运行验证缺少预期版本或架构")
+    arch = {"x86_64": "amd64", "amd64": "amd64", "aarch64": "arm64", "arm64": "arm64"}.get(
+        platform.machine().lower())
+    if arch != values["ARCH"]:
+        raise ValueError("镜像运行架构与 CI 目标不一致")
+    version = subprocess.check_output(["/slavesim", "-version"], text=True, timeout=15).strip()
+    expected = f"slaveSim {values['VERSION']} 提交={values['COMMIT']} 构建时间={values['BUILD_TIME']}"
+    if version != expected:
+        raise ValueError("镜像运行版本与 CI 元数据不一致")
+    print(f"linux/{arch} 运行身份校验通过：{version}", flush=True)
+
+
 def main():
+    verify_runtime_identity(os.environ)
     with tempfile.TemporaryDirectory(prefix="slavesim-smoke-") as temporary:
         root = Path(temporary)
         config = json.loads(Path("/etc/slavesim/config.example.json").read_text())
