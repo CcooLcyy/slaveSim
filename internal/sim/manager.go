@@ -104,7 +104,7 @@ func (m *Manager) apply(cfg *config.Config, save bool) error {
 				return fmt.Errorf("总线 %s 构造从站 %d 失败: %w", bc.Name, sc.DeviceID, err)
 			}
 			if sc.Model != nil {
-				m.log.Publish(eventbus.Event{Level: eventbus.LevelInfo, Bus: bc.Name, DeviceID: int(sc.DeviceID), Summary: "华为逆变器行为模型已构造；控制将联动功率、电流、反馈和电量"})
+				m.log.Publish(eventbus.Event{Level: eventbus.LevelInfo, Bus: bc.Name, DeviceID: int(sc.DeviceID), Summary: fmt.Sprintf("华为逆变器行为模型已构造；轻微扰动=%t，控制将联动功率、电流、反馈和电量", sc.Model.DisturbanceActive())})
 			}
 			slaves = append(slaves, sl)
 		}

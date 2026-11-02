@@ -149,11 +149,18 @@ export function createHuaweiPanel(root, options = {}) {
       };
       card.inputs[field.key] = input; label.append(input); scenarioGrid.append(label);
     }
+    const disturbanceLabel = element('label', 'config-field');
+    const disturbance = element('input'); disturbance.type = 'checkbox'; disturbance.name = 'disturbance_enabled';
+    disturbance.checked = device.model.scenario?.disturbance_enabled ?? true;
+    disturbance.onchange = () => { card.dirtyScenario = true; };
+    card.disturbance = disturbance;
+    disturbanceLabel.append(element('span', '', '轻微扰动'), disturbance); scenarioGrid.append(disturbanceLabel);
+    scenarioSet.append(element('p', '', '开启后，光照、电压和频率会轻微波动，功率与电流联动变化，温度缓慢变化；关闭可进行精确控制测试。'));
     const apply = element('button', 'primary', '应用场景'); apply.type = 'submit';
     scenarioSet.append(scenarioGrid, apply);
     scenarioForm.onsubmit = event => {
       event.preventDefault();
-      return submit('/api/scenario', () => scenarioRequest(card.device, Object.fromEntries(Object.entries(card.inputs).map(([key, input]) => [key, input.value]))), scenarioMessage, () => { card.dirtyScenario = false; });
+      return submit('/api/scenario', () => scenarioRequest(card.device, { ...Object.fromEntries(Object.entries(card.inputs).map(([key, input]) => [key, input.value])), disturbance_enabled: card.disturbance.checked }), scenarioMessage, () => { card.dirtyScenario = false; });
     };
     scenarioForm.append(scenarioSet, scenarioMessage); controls.append(scenarioForm);
     body.append(controls); card.node.append(body);
@@ -198,6 +205,7 @@ export function createHuaweiPanel(root, options = {}) {
       else card.chart.removeAttribute('hidden');
       // 控制卡不重建，草稿与反馈分开更新，轮询期间不会夺走焦点。
       if (!card.dirtyScenario && !card.pending) {
+        card.disturbance.checked = device.model.scenario?.disturbance_enabled ?? true;
         for (const field of scenarioFields) card.inputs[field.key].value = String(device.model.scenario?.[field.key] ?? '');
         card.solarValue.textContent = `${Number(card.inputs.dc_available_kw.value).toFixed(2)} kW`;
       }

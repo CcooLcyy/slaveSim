@@ -119,6 +119,24 @@ test('失败后重试恢复预置选择，同时保留输入中的旧草稿', as
 const capacityInput = root => all(root).find(node => node.name === 'rated_capacity_kw');
 const labelledInput = (root, text) => all(root).find(node => node.tagName === 'label' && node.children.some(child => child.textContent === text))?.children.find(node => node.tagName === 'input');
 
+test('模型配置扰动默认开启，保存关闭值且不改动原配置', async () => {
+  const config = { buses: [{ ...configuredBus(), slaves: [structuredClone(huawei)] }] };
+  const ui = await editor(async () => ({ ok: true, json: async () => catalog }), config);
+  try {
+    const toggle = all(ui.root).find(node => node.name === 'disturbance_enabled');
+    assert.ok(toggle); assert.equal(toggle.checked, true);
+    toggle.checked = false; toggle.onchange();
+    await ui.document.getElementById('config-form').onsubmit({ preventDefault() {} });
+    const saved = JSON.parse(ui.calls.find(call => call.options?.method === 'PUT').options.body);
+    assert.equal(saved.buses[0].slaves[0].model.disturbance_enabled, false);
+    assert.equal(config.buses[0].slaves[0].model.disturbance_enabled, undefined);
+  } finally { ui.restore(); }
+  config.buses[0].slaves[0].model.disturbance_enabled = false;
+  const existing = await editor(async () => ({ ok: true, json: async () => catalog }), config);
+  try { assert.equal(all(existing.root).find(node => node.name === 'disturbance_enabled').checked, false); }
+  finally { existing.restore(); }
+});
+
 const cards = (root, className) => all(root).filter(node => node.className?.split(' ').includes(className));
 const summaryText = node => all(node.children.find(child => child.tagName === 'summary')).map(child => child.textContent).join(' ');
 

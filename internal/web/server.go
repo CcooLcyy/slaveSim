@@ -272,7 +272,7 @@ func (s *Server) handleScenario(w http.ResponseWriter, r *http.Request) {
 					writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 					return
 				}
-				s.log.Publish(eventbus.Event{Level: eventbus.LevelInfo, Bus: name, DeviceID: req.DeviceID, Summary: fmt.Sprintf("华为仿真场景已更新: 可用DC=%.3fkW 线电压=%.1fV 频率=%.2fHz 温度=%.1f℃ 效率=%.3f", req.Scenario.DCAvailableKW, req.Scenario.GridLineVoltageV, req.Scenario.GridFrequencyHZ, req.Scenario.AmbientTemperatureC, req.Scenario.Efficiency)})
+				s.log.Publish(eventbus.Event{Level: eventbus.LevelInfo, Bus: name, DeviceID: req.DeviceID, Summary: fmt.Sprintf("华为仿真场景已更新: 可用DC=%.3fkW 线电压=%.1fV 频率=%.2fHz 温度=%.1f℃ 效率=%.3f 轻微扰动=%t", req.Scenario.DCAvailableKW, req.Scenario.GridLineVoltageV, req.Scenario.GridFrequencyHZ, req.Scenario.AmbientTemperatureC, req.Scenario.Efficiency, req.Scenario.DisturbanceActive())})
 				writeJSON(w, http.StatusOK, map[string]string{"result": "ok"})
 				return
 			}

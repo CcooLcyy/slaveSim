@@ -43,6 +43,9 @@ func TestAddPresetDevicesPreservesBusAndIndependentControls(t *testing.T) {
 			t.Fatal(err)
 		}
 		device.DeviceID = id
+		// 独立控制回归使用固定场景，保留原精确功率断言。
+		disturbanceEnabled := false
+		device.Model.DisturbanceEnabled = &disturbanceEnabled
 		c.Buses[0].Slaves = append(c.Buses[0].Slaves, device)
 	}
 	static := catalog[10].Slave

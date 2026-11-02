@@ -187,6 +187,14 @@ function modelEditor(parent, slave) {
       const input = field(fields, slave.model, parameter.key, parameter.label, { numeric: true, min: parameter.min, max: parameter.max, required: true });
       if (parameter.key === 'dc_available_kw') controls.solar = input;
     }
+    const disturbanceLabel = element('label', 'config-field');
+    const disturbance = element('input'); disturbance.type = 'checkbox'; disturbance.name = 'disturbance_enabled';
+    disturbance.checked = slave.model.disturbance_enabled ?? true;
+    disturbance.onchange = () => {
+      slave.model.disturbance_enabled = disturbance.checked; changed();
+      console.info('逆变器轻微扰动已更新到配置草稿', { device_id: slave.device_id, disturbance_enabled: disturbance.checked });
+    };
+    disturbanceLabel.append(element('span', '', '轻微扰动'), disturbance); fields.append(disturbanceLabel);
     section.append(element('p', '', '额定容量为正数，支持 0.001 kW 精度，调整时同步缩放功率能力和相关初值。太阳可用直流功率默认等于额定容量；手动修改光照后保留自定义值。'));
     section.append(fields, element('p', '', '这些参数随配置保存，运行页“应用场景”只临时修改当前运行。保存并应用配置会重建模型、重置临时命令及运行电量到模板初值；无模型的旧从站保持原数值来源规则。'));
   } else {

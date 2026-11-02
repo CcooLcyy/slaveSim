@@ -7,12 +7,28 @@ import (
 
 // HuaweiModel 描述华为 V3 逆变器的场景输入，功率单位为 kW。
 type HuaweiModel struct {
-	Kind                string  `json:"kind"`
+	Kind string `json:"kind"`
+	// DisturbanceEnabled 缺省开启轻微扰动，显式 false 用于确定性控制与报文回归。
+	DisturbanceEnabled  *bool   `json:"disturbance_enabled,omitempty"`
 	DCAvailableKW       float64 `json:"dc_available_kw"`
 	GridLineVoltageV    float64 `json:"grid_line_voltage_v"`
 	GridFrequencyHZ     float64 `json:"grid_frequency_hz"`
 	AmbientTemperatureC float64 `json:"ambient_temperature_c"`
 	Efficiency          float64 `json:"efficiency"`
+}
+
+// DisturbanceActive 返回场景的有效扰动开关。
+func (m HuaweiModel) DisturbanceActive() bool {
+	return m.DisturbanceEnabled == nil || *m.DisturbanceEnabled
+}
+
+// Clone 隔离开关指针，避免查询场景或应用配置时共享可变状态。
+func (m HuaweiModel) Clone() HuaweiModel {
+	if m.DisturbanceEnabled != nil {
+		enabled := *m.DisturbanceEnabled
+		m.DisturbanceEnabled = &enabled
+	}
+	return m
 }
 
 // Validate 校验模型类别以及全部场景参数的有限数值和物理范围。

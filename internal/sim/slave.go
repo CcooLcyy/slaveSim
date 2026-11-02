@@ -147,7 +147,7 @@ func NewSlave(cfg config.Slave, now time.Time) (*Slave, error) {
 		if err := cfg.ValidateModel(); err != nil {
 			return nil, err
 		}
-		s.model = newHuaweiDevice(*cfg.Model, s.order, now)
+		s.model = newHuaweiDevice(*cfg.Model, s.order, now, cfg.DeviceID)
 	}
 	return s, nil
 }
@@ -586,7 +586,8 @@ func (s *Slave) SetScenario(scene config.HuaweiModel, now time.Time) error {
 		return fmt.Errorf("该从站没有设备行为模型")
 	}
 	s.model.advance(now)
-	s.model.scene = scene
+	s.model.scene = scene.Clone()
+	s.model.checkpoint = nil
 	s.model.p = math.Min(s.model.p, s.model.availableP())
 	if s.model.p == 0 {
 		s.model.q = 0

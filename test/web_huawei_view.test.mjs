@@ -6,6 +6,16 @@ import { normalizeConfig } from '../internal/web/static/config-model.mjs';
 const scenario = { dc_available_kw: 51.02, grid_line_voltage_v: 400, grid_frequency_hz: 50, ambient_temperature_c: 25, efficiency: 0.98 };
 const device = { bus: 'Huawei-V3', device_id: 1, model: { kind: 'huawei_v3', active_kw: 25, target_active_kw: 25, reactive_kvar: -12.1, target_reactive_kvar: -12.1, power_factor: -0.9, day_energy_kwh: 1.2, total_energy_kwh: 54321.2, status: '限电降额', active_command: 40125, reactive_command: 40122, scenario }, registers: [{ address: 30075, value: 55000 }] };
 
+test('场景扰动开关保留关闭值，缺省沿用后端默认且拒绝非布尔值', () => {
+  for (const disturbance_enabled of [true, false]) {
+    assert.equal(scenarioRequest(device, { ...scenario, disturbance_enabled }).scenario.disturbance_enabled, disturbance_enabled);
+  }
+  assert.equal('disturbance_enabled' in scenarioRequest(device, scenario).scenario, false);
+  for (const disturbance_enabled of [null, 0, 1, '', 'false', 'true']) {
+    assert.throws(() => scenarioRequest(device, { ...scenario, disturbance_enabled }), /扰动.*布尔/);
+  }
+});
+
 test('已有配置归一化保留模型五参数，草稿编辑不会改动原配置', () => {
   const model = { kind: 'huawei_v3', ...scenario };
   const source = { buses: [{ name: 'Huawei-V3', slaves: [{ device_id: 1, model, registers: [] }] }] };

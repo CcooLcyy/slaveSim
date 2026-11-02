@@ -19,6 +19,9 @@ func modelSlave(t *testing.T, now time.Time) *Slave {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// 精确控制、积分和编码回归关闭扰动，默认开启另由扰动用例覆盖。
+	disturbanceEnabled := false
+	cfg.Buses[0].Slaves[0].Model.DisturbanceEnabled = &disturbanceEnabled
 	sl, err := NewSlave(cfg.Buses[0].Slaves[0], now)
 	if err != nil {
 		t.Fatal(err)

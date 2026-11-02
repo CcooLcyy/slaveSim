@@ -21,6 +21,9 @@ func TestHuaweiPTYAndAutonomousRuntime(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// 本用例验证精确控制与PTY编码，关闭扰动以保持原断言。
+	disturbanceEnabled := false
+	cfg.Buses[0].Slaves[0].Model.DisturbanceEnabled = &disturbanceEnabled
 	dir := t.TempDir()
 	cfg.Buses[0].Link = filepath.Join(dir, "tty0")
 	m, err := NewManager(filepath.Join(dir, "config.json"), cfg, eventbus.NewLog(128))

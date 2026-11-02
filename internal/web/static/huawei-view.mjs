@@ -47,6 +47,10 @@ export function controlRequest(device, kind, input) {
 
 export function scenarioRequest(device, values) {
   const scenario = {};
+  if (Object.hasOwn(values, 'disturbance_enabled')) {
+    if (typeof values.disturbance_enabled !== 'boolean') throw new Error('轻微扰动开关必须是布尔值');
+    scenario.disturbance_enabled = values.disturbance_enabled;
+  }
   for (const field of scenarioFields) {
     const value = number(values[field.key], field.label);
     if (value < field.min || value > field.max || (field.exclusiveMin && value === field.min)) throw new Error(`${field.label}超出合法范围`);

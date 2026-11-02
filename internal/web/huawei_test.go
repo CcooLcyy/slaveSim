@@ -20,6 +20,9 @@ func TestHuaweiWebModelControlAndScenario(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// 本用例保持精确目标功率断言，配置和后续场景均显式关闭扰动。
+	disturbanceEnabled := false
+	cfg.Buses[0].Slaves[0].Model.DisturbanceEnabled = &disturbanceEnabled
 	dir := t.TempDir()
 	cfg.Buses[0].Link = filepath.Join(dir, "tty0")
 	log := eventbus.NewLog(32)
@@ -43,15 +46,15 @@ func TestHuaweiWebModelControlAndScenario(t *testing.T) {
 	if w.Code != 400 {
 		t.Fatalf("不应允许手改派生遥测: %d", w.Code)
 	}
-	w = call("/api/scenario", `{"bus":"Huawei-V3","device_id":1,"scenario":{"dc_available_kw":10,"grid_line_voltage_v":400,"grid_frequency_hz":50,"ambient_temperature_c":25,"efficiency":0.98}}`)
+	w = call("/api/scenario", `{"bus":"Huawei-V3","device_id":1,"scenario":{"disturbance_enabled":false,"dc_available_kw":10,"grid_line_voltage_v":400,"grid_frequency_hz":50,"ambient_temperature_c":25,"efficiency":0.98}}`)
 	if w.Code != 200 || s.Snapshot().Buses[0].Slaves[0].Model.TargetActiveKW != 9.8 {
 		t.Fatalf("减光场景没有生效: %d %s", w.Code, w.Body.String())
 	}
-	w = call("/api/scenario", `{"bus":"Huawei-V3","device_id":1,"scenario":{"dc_available_kw":10,"grid_line_voltage_v":0,"grid_frequency_hz":50,"ambient_temperature_c":25,"efficiency":0.98}}`)
+	w = call("/api/scenario", `{"bus":"Huawei-V3","device_id":1,"scenario":{"disturbance_enabled":false,"dc_available_kw":10,"grid_line_voltage_v":0,"grid_frequency_hz":50,"ambient_temperature_c":25,"efficiency":0.98}}`)
 	if w.Code != 400 || s.Snapshot().Buses[0].Slaves[0].Model.Scenario.GridLineVoltageV != 400 {
 		t.Fatal("非法场景没有原子拒绝")
 	}
-	w = call("/api/scenario", `{"bus":"不存在","device_id":1,"scenario":{"dc_available_kw":10,"grid_line_voltage_v":400,"grid_frequency_hz":50,"ambient_temperature_c":25,"efficiency":0.98}}`)
+	w = call("/api/scenario", `{"bus":"不存在","device_id":1,"scenario":{"disturbance_enabled":false,"dc_available_kw":10,"grid_line_voltage_v":400,"grid_frequency_hz":50,"ambient_temperature_c":25,"efficiency":0.98}}`)
 	if w.Code != 404 {
 		t.Fatal("不存在从站应返回404")
 	}

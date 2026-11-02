@@ -28,6 +28,26 @@ const compactValues = summary => all(find(summary, node => hasClass(node, 'huawe
   .filter(node => hasClass(node, 'huawei-compact-value') || node.dataset.metric)
   .map(node => node.textContent);
 
+test('扰动默认开启，关闭草稿在轮询中保留，提交布尔值并跟随服务端反馈刷新', async () => {
+  const calls = [];
+  const root = new Node('div', document);
+  const panel = createHuaweiPanel(root, { fetch: async (url, options) => { calls.push(JSON.parse(options.body)); return { ok: true, json: async () => ({}) }; } });
+  panel.update(state());
+  const toggle = input(root, 'disturbance_enabled');
+  assert.ok(toggle); assert.equal(toggle.type, 'checkbox'); assert.equal(toggle.checked, true);
+  toggle.checked = false; toggle.onchange();
+  panel.update(state());
+  assert.equal(input(root, 'disturbance_enabled'), toggle); assert.equal(toggle.checked, false);
+  await find(root, node => node.dataset.form === 'scenario').onsubmit({ preventDefault() {} });
+  assert.equal(calls[0].scenario.disturbance_enabled, false);
+  const disabled = state(); disabled.buses[0].slaves[0].model.scenario.disturbance_enabled = false;
+  panel.update(disabled); assert.equal(toggle.checked, false);
+  input(root, 'dc_available_kw').value = '20'; input(root, 'dc_available_kw').oninput();
+  await find(root, node => node.dataset.form === 'scenario').onsubmit({ preventDefault() {} });
+  assert.equal(calls[1].scenario.disturbance_enabled, false);
+  panel.update(state()); assert.equal(toggle.checked, true);
+});
+
 test('行为模型默认收起，摘要保留设备身份、状态和实际P/Q/PF并持续刷新', () => {
   const root = new Node('div', document);
   const panel = createHuaweiPanel(root);
@@ -161,7 +181,7 @@ test('预设向manual写入、场景全量提交，成功后请求刷新反馈',
   const dc = input(root, 'dc_available_kw'); dc.value = '25'; dc.oninput();
   await find(root, node => node.dataset.form === 'scenario').onsubmit({ preventDefault() {} });
   assert.equal(calls[1].url, '/api/scenario');
-  assert.deepEqual(calls[1].body.scenario, { dc_available_kw: 25, grid_line_voltage_v: 400, grid_frequency_hz: 50, ambient_temperature_c: 25, efficiency: 0.98 });
+  assert.deepEqual(calls[1].body.scenario, { dc_available_kw: 25, grid_line_voltage_v: 400, grid_frequency_hz: 50, ambient_temperature_c: 25, efficiency: 0.98, disturbance_enabled: true });
   assert.equal(applied, 2);
 });
 

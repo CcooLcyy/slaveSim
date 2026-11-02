@@ -140,7 +140,7 @@ func (c *Config) Clone() *Config {
 		for j, s := range b.Slaves {
 			copyConfig.Buses[i].Slaves[j] = s
 			if s.Model != nil {
-				model := *s.Model
+				model := s.Model.Clone()
 				copyConfig.Buses[i].Slaves[j].Model = &model
 			}
 			copyConfig.Buses[i].Slaves[j].Registers = append([]Register(nil), s.Registers...)
