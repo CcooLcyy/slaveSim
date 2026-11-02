@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { newBus } from '../internal/web/static/config-model.mjs';
+import { newBus, newSlave } from '../internal/web/static/config-model.mjs';
+
+const configuredBus = (buses = []) => ({ ...newBus(buses), slaves: [newSlave()] });
 
 class Node {
   constructor(tag) { this.tagName = tag; this.children = []; this.textContent = ''; this.value = ''; this.dataset = {}; }
@@ -14,7 +16,7 @@ const huawei = JSON.parse(readFileSync(new URL('../configs/inverters/huawei-v3-m
 const catalog = [{ id: 'huawei_v3', name: '华为逆变器（V3，行为仿真）', slave: huawei }];
 let serial = 0;
 
-async function editor(fetch, config = { buses: [newBus()] }) {
+async function editor(fetch, config = { buses: [configuredBus()] }) {
   const ids = new Map();
   const document = { getElementById: id => { if (!ids.has(id)) ids.set(id, new Node(id)); return ids.get(id); }, createElement: tag => new Node(tag) };
   const calls = [];
@@ -52,7 +54,7 @@ test('设备预置加载失败仍可新增自定义并保存旧配置，不触�
 
 test('模板异步到达不重建输入或覆盖未保存草稿，预置仅加入所选总线', async () => {
   let finish;
-  const config = { buses: [newBus(), { ...newBus([newBus()]), slaves: [{ ...newBus().slaves[0], device_id: 2 }] }] };
+  const config = { buses: [configuredBus(), { ...configuredBus([configuredBus()]), slaves: [{ ...configuredBus().slaves[0], device_id: 2 }] }] };
   const ui = await editor(async () => new Promise(resolve => { finish = resolve; }), config);
   try {
     const nameInput = all(ui.root).find(node => node.value === 'RS485-1');
@@ -74,7 +76,7 @@ test('模板异步到达不重建输入或覆盖未保存草稿，预置仅加�
 });
 
 test('已删除总线的旧按钮不能把设备加到另一条总线', async () => {
-  const config = { buses: [newBus(), newBus([newBus()])] };
+  const config = { buses: [configuredBus(), configuredBus([configuredBus()])] };
   const ui = await editor(async () => ({ ok: true, json: async () => catalog }), config);
   try {
     const stale = add(ui.root);
@@ -90,8 +92,8 @@ test('已删除总线的旧按钮不能把设备加到另一条总线', async ()
 });
 
 test('总线站号用满时显示中文错误，不添加248号或应用配置', async () => {
-  const bus = newBus();
-  bus.slaves = Array.from({ length: 247 }, (_, index) => ({ ...newBus().slaves[0], device_id: index + 1 }));
+  const bus = configuredBus();
+  bus.slaves = Array.from({ length: 247 }, (_, index) => ({ ...configuredBus().slaves[0], device_id: index + 1 }));
   const ui = await editor(async () => ({ ok: true, json: async () => catalog }), { buses: [bus] });
   try {
     add(ui.root).onclick();
@@ -120,8 +122,50 @@ const labelledInput = (root, text) => all(root).find(node => node.tagName === 'l
 const cards = (root, className) => all(root).filter(node => node.className?.split(' ').includes(className));
 const summaryText = node => all(node.children.find(child => child.tagName === 'summary')).map(child => child.textContent).join(' ');
 
+test('新建总线默认为空，保存提示添加从站，手动添加首台设备后站号为1并可保存', async () => {
+  const ui = await editor(async () => ({ ok: true, json: async () => catalog }));
+  try {
+    ui.document.getElementById('add-bus').onclick();
+    const bus = cards(ui.root, 'bus-editor').at(-1);
+    assert.equal(bus.open, true);
+    assert.equal(cards(bus, 'slave-editor').length, 0);
+    assert.match(summaryText(bus), /0 个从站/);
+    await ui.document.getElementById('config-form').onsubmit({ preventDefault() {} });
+    assert.equal(ui.calls.filter(call => call.options?.method === 'PUT').length, 0);
+    assert.match(ui.document.getElementById('config-status').textContent, /至少添加一个从站/);
+    add(bus).onclick();
+    const station = cards(cards(ui.root, 'bus-editor').at(-1), 'slave-editor')[0];
+    assert.equal(station.open, true);
+    assert.match(summaryText(station), /从站 1/);
+    await ui.document.getElementById('config-form').onsubmit({ preventDefault() {} });
+    const saved = JSON.parse(ui.calls.find(call => call.options?.method === 'PUT').options.body);
+    assert.equal(saved.buses[1].slaves.length, 1);
+    assert.equal(saved.buses[1].slaves[0].device_id, 1);
+    assert.equal(saved.buses[0].slaves.length, 1);
+  } finally { ui.restore(); }
+});
+
+test('从空总线添加华为设备时转换效率显示1，已有设备效率读取和保存均保留', async () => {
+  const existing = structuredClone(huawei); existing.model.efficiency = 0.93;
+  const ui = await editor(async () => ({ ok: true, json: async () => catalog }), { buses: [{ ...newBus(), slaves: [existing] }] });
+  try {
+    assert.equal(Number(labelledInput(ui.root, '转换效率（0～1，不含0）').value), 0.93);
+    ui.document.getElementById('add-bus').onclick();
+    const bus = cards(ui.root, 'bus-editor').at(-1);
+    select(bus).value = 'huawei_v3'; select(bus).onchange(); add(bus).onclick();
+    const updatedBus = cards(ui.root, 'bus-editor').at(-1);
+    assert.equal(Number(labelledInput(updatedBus, '转换效率（0～1，不含0）').value), 1);
+    await ui.document.getElementById('config-form').onsubmit({ preventDefault() {} });
+    const saved = JSON.parse(ui.calls.find(call => call.options?.method === 'PUT').options.body);
+    assert.equal(saved.buses[0].slaves[0].model.efficiency, 0.93);
+    assert.equal(saved.buses[1].slaves[0].model.efficiency, 1);
+    assert.equal(saved.buses[1].slaves[0].device_id, 1);
+    assert.equal(existing.model.efficiency, 0.93);
+  } finally { ui.restore(); }
+});
+
 test('配置默认展开总线并收起从站，标题展示总线与设备摘要', async () => {
-  const ui = await editor(async () => ({ ok: true, json: async () => catalog }), { buses: [{ ...newBus(), slaves: [huawei] }] });
+  const ui = await editor(async () => ({ ok: true, json: async () => catalog }), { buses: [{ ...configuredBus(), slaves: [huawei] }] });
   try {
     const bus = cards(ui.root, 'bus-editor')[0]; const slave = cards(ui.root, 'slave-editor')[0];
     assert.equal(bus.tagName, 'details'); assert.equal(bus.open, true);
@@ -159,7 +203,7 @@ test('全部展开收起不改草稿状态或输入节点，且不强制展开�
 });
 
 test('新增设备和总线自动展开，增删重绘保留其他节点折叠状态和草稿', async () => {
-  const config = { buses: [newBus(), newBus([newBus()])] };
+  const config = { buses: [configuredBus(), configuredBus([configuredBus()])] };
   const ui = await editor(async () => ({ ok: true, json: async () => catalog }), config);
   try {
     cards(ui.root, 'bus-editor')[1].open = false;
@@ -176,7 +220,7 @@ test('新增设备和总线自动展开，增删重绘保留其他节点折叠�
     assert.equal(labelledInput(ui.root, '总线名称').value, '编辑后名称');
     ui.document.getElementById('add-bus').onclick();
     assert.equal(cards(ui.root, 'bus-editor').at(-1).open, true);
-    assert.equal(cards(ui.root, 'slave-editor').at(-1).open, true);
+    assert.equal(cards(cards(ui.root, 'bus-editor').at(-1), 'slave-editor').length, 0);
     assert.equal(cards(ui.root, 'bus-editor')[1].open, false);
   } finally { ui.restore(); }
 });
@@ -210,7 +254,7 @@ test('编辑名称路径站号立即更新折叠摘要，增删寄存器刷新�
 });
 
 test('折叠标题中的删除按钮阻止默认切换和冒泡且只移除目标项', async () => {
-  const ui = await editor(async () => ({ ok: true, json: async () => catalog }), { buses: [newBus(), newBus([newBus()])] });
+  const ui = await editor(async () => ({ ok: true, json: async () => catalog }), { buses: [configuredBus(), configuredBus([configuredBus()])] });
   try {
     let prevented = 0; let stopped = 0;
     const event = { preventDefault() { prevented++; }, stopPropagation() { stopped++; } };
@@ -229,7 +273,7 @@ test('折叠标题中的删除按钮阻止默认切换和冒泡且只移除目�
 
 test('模型参数区配置额定容量并保存关联能力，默认光照随容量更新且重读保留', async () => {
   const station = structuredClone(huawei); station.model.dc_available_kw = 50;
-  const config = { buses: [{ ...newBus(), slaves: [station] }] };
+  const config = { buses: [{ ...configuredBus(), slaves: [station] }] };
   const ui = await editor(async () => ({ ok: true, json: async () => catalog }), config);
   try {
     const rated = capacityInput(ui.root);
@@ -256,7 +300,7 @@ test('模型参数区配置额定容量并保存关联能力，默认光照随�
 test('未失焦的容量在保存时生效，自定义光照和另一台逆变器不受影响', async () => {
   const first = structuredClone(huawei); first.model.dc_available_kw = 12;
   const second = structuredClone(huawei); second.device_id = 2;
-  const ui = await editor(async () => ({ ok: true, json: async () => catalog }), { buses: [{ ...newBus(), slaves: [first, second] }] });
+  const ui = await editor(async () => ({ ok: true, json: async () => catalog }), { buses: [{ ...configuredBus(), slaves: [first, second] }] });
   try {
     const rated = capacityInput(ui.root); rated.value = '250'; rated.oninput();
     await ui.document.getElementById('config-form').onsubmit({ preventDefault() {} });
@@ -269,7 +313,7 @@ test('未失焦的容量在保存时生效，自定义光照和另一台逆变�
 });
 
 test('非法容量保留草稿并禁止保存，修正后可以应用', async () => {
-  const ui = await editor(async () => ({ ok: true, json: async () => catalog }), { buses: [{ ...newBus(), slaves: [huawei] }] });
+  const ui = await editor(async () => ({ ok: true, json: async () => catalog }), { buses: [{ ...configuredBus(), slaves: [huawei] }] });
   try {
     const rated = capacityInput(ui.root);
     for (const value of ['', '0', '-1', '1.0001']) {

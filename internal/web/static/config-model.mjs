@@ -21,7 +21,7 @@ export function newBus(buses = []) {
   const directory = firstLink.slice(0, firstLink.lastIndexOf('/') + 1);
   let port = 0;
   while (buses.some(bus => bus.link === `${directory}tty${port}`)) port++;
-  return { name: `RS485-${number}`, link: `${directory}tty${port}`, slaves: [newSlave()] };
+  return { name: `RS485-${number}`, link: `${directory}tty${port}`, slaves: [] };
 }
 
 export function normalizeConfig(value) {

@@ -81,7 +81,7 @@ function deviceAdder(bus) {
       busGroups.get(bus).open = true;
       bus.slaves.push(slave); changed(); renderEditor();
       message(`已将${template?.name || '自定义 Modbus 设备'}加入总线 ${bus.name} 的草稿（站号 ${slave.device_id}）；保存并应用后生效`);
-      console.info('设备已加入配置草稿', { bus: bus.name, device_id: slave.device_id, type });
+      console.info('设备已加入配置草稿', { bus: bus.name, device_id: slave.device_id, type, efficiency: slave.model?.efficiency });
     } catch (error) { message(`添加设备失败：${error.message}`, true); }
   };
   area.append(label, button);
@@ -257,6 +257,7 @@ function renderEditor() {
     field(fields, bus, 'name', '总线名称', { required: true, afterInput: updateBusTitle });
     field(fields, bus, 'link', '串口软链接路径', { required: true, placeholder: '/srv/serial-sim/tty0', afterInput: updateBusTitle });
     card.append(heading, fields, deviceAdder(bus));
+    if (!bus.slaves.length) card.append(element('p', 'config-empty', '暂无从站，请选择设备类型并点击“添加设备”；保存前须至少添加一个从站。'));
     for (const [slaveIndex, slave] of bus.slaves.entries()) {
       const station = element('details', 'slave-editor');
       station.open = slaveGroups.get(slave)?.open ?? false;
@@ -350,8 +351,8 @@ document.getElementById('add-bus').onclick = () => {
   if (!draft || busy) return;
   const bus = newBus(draft.buses);
   busGroups.set(bus, { open: true });
-  for (const slave of bus.slaves) slaveGroups.set(slave, { open: true });
   draft.buses.push(bus); changed(); renderEditor();
+  console.info('空总线已加入配置草稿', { bus: bus.name, link: bus.link });
 };
 function setGroupsOpen(open) {
   if (!draft || busy) return;

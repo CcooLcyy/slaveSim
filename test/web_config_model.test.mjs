@@ -2,12 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { newBus, newSlave, newRegister, normalizeConfig, validateDraft, sourceFields } from '../internal/web/static/config-model.mjs';
 
-// 多路总线生成独立名称和路径，且从站站号可以跨总线重复。
+// 多路总线生成独立名称和路径，新总线不自动挂载设备。
 test('新增总线沿用挂载目录并避开既有名称和路径', () => {
   const buses = [{ name: 'RS485-1', link: '/home/megsky/serial-sim/tty0', slaves: [newSlave()] }];
   const second = newBus(buses);
   assert.equal(second.name, 'RS485-2');
   assert.equal(second.link, '/home/megsky/serial-sim/tty1');
+  assert.deepEqual(second.slaves, []);
+  assert.match(validateDraft({ buses: [...buses, second] }), /至少添加一个从站/);
+  second.slaves.push(newSlave());
   assert.equal(second.slaves[0].device_id, 1);
   assert.equal(validateDraft({ buses: [...buses, second] }), '');
 });
@@ -38,7 +41,7 @@ test('服务器空字符串策略恢复为默认异常响应', () => {
 // UI 在保存前阻止空列表、重复路径、非法编号和来源参数。
 test('非法配置返回可定位的中文原因', () => {
   assert.match(validateDraft({ buses: [] }), /总线/);
-  const cfg = { buses: [newBus([])] };
+  const cfg = { buses: [{ ...newBus([]), slaves: [newSlave()] }] };
   cfg.buses.push(structuredClone(cfg.buses[0]));
   assert.match(validateDraft(cfg), /重复/);
   cfg.buses.pop();

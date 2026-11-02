@@ -2,9 +2,24 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { nextDeviceID, parseDeviceTemplates, createDeviceSlave, loadDeviceTemplates } from '../internal/web/static/device-templates.mjs';
+import { normalizeConfig } from '../internal/web/static/config-model.mjs';
 
 const huawei = JSON.parse(readFileSync(new URL('../configs/inverters/huawei-v3-model.json', import.meta.url), 'utf8')).buses[0].slaves[0];
 const template = { id: 'huawei_v3', name: '华为逆变器（V3，行为仿真）', slave: huawei };
+
+test('新增华为设备转换效率默认1，读取配置及目录保留原始值', () => {
+  const source = structuredClone(template);
+  source.slave.model.efficiency = 0.93;
+  const before = structuredClone(source);
+  const catalog = parseDeviceTemplates([source]);
+  const existing = normalizeConfig({ buses: [{ name: '已有总线', link: '/tmp/existing', slaves: [source.slave] }] });
+  assert.equal(catalog[0].slave.model.efficiency, 0.93);
+  assert.equal(existing.buses[0].slaves[0].model.efficiency, 0.93);
+  const added = createDeviceSlave([], catalog[0]);
+  assert.equal(added.model.efficiency, 1);
+  assert.equal(catalog[0].slave.model.efficiency, 0.93);
+  assert.deepEqual(source, before);
+});
 
 test('新增华为设备的当日和累计电量从零开始，已有配置与目录初值保留', () => {
   const configured = structuredClone(template);
