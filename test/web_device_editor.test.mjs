@@ -117,6 +117,116 @@ test('失败后重试恢复预置选择，同时保留输入中的旧草稿', as
 const capacityInput = root => all(root).find(node => node.name === 'rated_capacity_kw');
 const labelledInput = (root, text) => all(root).find(node => node.tagName === 'label' && node.children.some(child => child.textContent === text))?.children.find(node => node.tagName === 'input');
 
+const cards = (root, className) => all(root).filter(node => node.className?.split(' ').includes(className));
+const summaryText = node => all(node.children.find(child => child.tagName === 'summary')).map(child => child.textContent).join(' ');
+
+test('配置默认展开总线并收起从站，标题展示总线与设备摘要', async () => {
+  const ui = await editor(async () => ({ ok: true, json: async () => catalog }), { buses: [{ ...newBus(), slaves: [huawei] }] });
+  try {
+    const bus = cards(ui.root, 'bus-editor')[0]; const slave = cards(ui.root, 'slave-editor')[0];
+    assert.equal(bus.tagName, 'details'); assert.equal(bus.open, true);
+    assert.equal(slave.tagName, 'details'); assert.equal(slave.open, false);
+    assert.match(summaryText(bus), /RS485-1/); assert.match(summaryText(bus), /1 个从站/);
+    assert.match(summaryText(bus), /\/srv\/serial-sim\/tty0/);
+    assert.match(summaryText(slave), /从站 1/); assert.match(summaryText(slave), /华为逆变器/);
+    assert.match(summaryText(slave), new RegExp(`${huawei.registers.length} (项|个寄存器)`));
+  } finally { ui.restore(); }
+});
+
+test('全部展开收起不改草稿状态或输入节点，且不强制展开寄存器', async () => {
+  const ui = await editor(async () => ({ ok: true, json: async () => catalog }));
+  try {
+    const initialStatus = ui.document.getElementById('config-status').textContent;
+    const input = labelledInput(ui.root, '总线名称');
+    const registers = cards(ui.root, 'register-group')[0];
+    ui.document.getElementById('expand-config').onclick();
+    assert.equal(cards(ui.root, 'bus-editor')[0].open, true);
+    assert.equal(cards(ui.root, 'slave-editor')[0].open, true);
+    assert.equal(registers.open, false);
+    ui.document.getElementById('collapse-config').onclick();
+    assert.equal(cards(ui.root, 'bus-editor')[0].open, false);
+    assert.equal(cards(ui.root, 'slave-editor')[0].open, false);
+    assert.equal(ui.document.getElementById('config-status').textContent, initialStatus);
+    input.value = '未保存名称'; input.oninput();
+    ui.document.getElementById('expand-config').onclick();
+    assert.ok(all(ui.root).includes(input)); assert.equal(input.value, '未保存名称');
+    assert.equal(ui.calls.filter(call => call.options?.method === 'PUT').length, 0);
+    await ui.document.getElementById('config-form').onsubmit({ preventDefault() {} });
+    const saved = JSON.parse(ui.calls.find(call => call.options?.method === 'PUT').options.body);
+    assert.equal(saved.buses[0].name, '未保存名称');
+    assert.deepEqual(Object.keys(saved.buses[0]).sort(), ['link', 'name', 'slaves']);
+  } finally { ui.restore(); }
+});
+
+test('新增设备和总线自动展开，增删重绘保留其他节点折叠状态和草稿', async () => {
+  const config = { buses: [newBus(), newBus([newBus()])] };
+  const ui = await editor(async () => ({ ok: true, json: async () => catalog }), config);
+  try {
+    cards(ui.root, 'bus-editor')[1].open = false;
+    cards(ui.root, 'slave-editor')[0].open = true;
+    const input = labelledInput(ui.root, '总线名称'); input.value = '编辑后名称'; input.oninput();
+    add(ui.root).onclick();
+    assert.equal(cards(ui.root, 'bus-editor')[1].open, false);
+    assert.equal(cards(ui.root, 'slave-editor')[0].open, true);
+    assert.equal(cards(ui.root, 'slave-editor')[1].open, true);
+    assert.match(summaryText(cards(ui.root, 'bus-editor')[0]), /2 个从站/);
+    all(cards(ui.root, 'slave-editor')[1]).find(node => node.textContent === '删除从站').onclick();
+    assert.equal(cards(ui.root, 'bus-editor')[1].open, false);
+    assert.equal(cards(ui.root, 'slave-editor')[0].open, true);
+    assert.equal(labelledInput(ui.root, '总线名称').value, '编辑后名称');
+    ui.document.getElementById('add-bus').onclick();
+    assert.equal(cards(ui.root, 'bus-editor').at(-1).open, true);
+    assert.equal(cards(ui.root, 'slave-editor').at(-1).open, true);
+    assert.equal(cards(ui.root, 'bus-editor')[1].open, false);
+  } finally { ui.restore(); }
+});
+
+test('重新读取配置恢复默认总线和从站折叠状态', async () => {
+  const ui = await editor(async () => ({ ok: true, json: async () => catalog }));
+  try {
+    ui.document.getElementById('expand-config').onclick();
+    cards(ui.root, 'bus-editor')[0].open = false;
+    await ui.document.getElementById('reload-config').onclick();
+    assert.equal(cards(ui.root, 'bus-editor')[0].open, true);
+    assert.equal(cards(ui.root, 'slave-editor')[0].open, false);
+  } finally { ui.restore(); }
+});
+
+test('编辑名称路径站号立即更新折叠摘要，增删寄存器刷新数量', async () => {
+  const ui = await editor(async () => ({ ok: true, json: async () => catalog }));
+  try {
+    for (const [label, value] of [['总线名称', '现场总线'], ['串口软链接路径', '/srv/serial-sim/tty7'], ['站号（1～247）', '7']]) {
+      const input = labelledInput(ui.root, label); input.value = value; input.oninput();
+    }
+    assert.match(summaryText(cards(ui.root, 'bus-editor')[0]), /现场总线/);
+    assert.match(summaryText(cards(ui.root, 'bus-editor')[0]), /\/srv\/serial-sim\/tty7/);
+    assert.match(summaryText(cards(ui.root, 'slave-editor')[0]), /从站 7/);
+    assert.match(summaryText(cards(ui.root, 'slave-editor')[0]), /自定义 Modbus 设备/);
+    all(ui.root).find(node => node.textContent === '新增寄存器').onclick();
+    assert.match(summaryText(cards(ui.root, 'slave-editor')[0]), /2 个寄存器/);
+    all(ui.root).find(node => node.textContent === '删除寄存器').onclick();
+    assert.match(summaryText(cards(ui.root, 'slave-editor')[0]), /1 个寄存器/);
+  } finally { ui.restore(); }
+});
+
+test('折叠标题中的删除按钮阻止默认切换和冒泡且只移除目标项', async () => {
+  const ui = await editor(async () => ({ ok: true, json: async () => catalog }), { buses: [newBus(), newBus([newBus()])] });
+  try {
+    let prevented = 0; let stopped = 0;
+    const event = { preventDefault() { prevented++; }, stopPropagation() { stopped++; } };
+    all(cards(ui.root, 'slave-editor')[0]).find(node => node.textContent === '删除从站').onclick(event);
+    assert.equal(prevented, 1); assert.equal(stopped, 1);
+    assert.equal(cards(ui.root, 'bus-editor').length, 2);
+    assert.equal(cards(ui.root, 'slave-editor').length, 1);
+    assert.match(summaryText(cards(ui.root, 'bus-editor')[0]), /0 个从站/);
+    all(cards(ui.root, 'bus-editor')[0]).find(node => node.textContent === '删除总线').onclick(event);
+    assert.equal(prevented, 2); assert.equal(stopped, 2);
+    assert.equal(cards(ui.root, 'bus-editor').length, 1);
+    assert.match(summaryText(cards(ui.root, 'bus-editor')[0]), /RS485-2/);
+    assert.equal(cards(ui.root, 'slave-editor').length, 1);
+  } finally { ui.restore(); }
+});
+
 test('模型参数区配置额定容量并保存关联能力，默认光照随容量更新且重读保留', async () => {
   const station = structuredClone(huawei); station.model.dc_available_kw = 50;
   const config = { buses: [{ ...newBus(), slaves: [station] }] };

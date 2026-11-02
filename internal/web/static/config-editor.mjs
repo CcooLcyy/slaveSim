@@ -11,6 +11,8 @@ let dirty = false;
 let busy = false;
 const expandedRegisters = new WeakMap();
 const registerGroups = new WeakMap();
+const busGroups = new WeakMap();
+const slaveGroups = new WeakMap();
 const selectedDeviceTypes = new WeakMap();
 const capacityDrafts = new WeakMap();
 const capacityControls = new WeakMap();
@@ -75,6 +77,8 @@ function deviceAdder(bus) {
       const template = type === customDeviceType ? null : deviceTemplates.find(template => template.id === type);
       if (type !== customDeviceType && !template) throw new Error('所选预置设备不可用，请重试加载或选择自定义 Modbus 设备');
       const slave = createDeviceSlave(bus.slaves, template);
+      slaveGroups.set(slave, { open: true });
+      busGroups.get(bus).open = true;
       bus.slaves.push(slave); changed(); renderEditor();
       message(`已将${template?.name || '自定义 Modbus 设备'}加入总线 ${bus.name} 的草稿（站号 ${slave.device_id}）；保存并应用后生效`);
       console.info('设备已加入配置草稿', { bus: bus.name, device_id: slave.device_id, type });
@@ -104,7 +108,9 @@ function element(tag, className, text) {
 function action(label, handler, danger = false) {
   const button = element('button', danger ? 'danger' : '', label);
   button.type = 'button';
-  button.onclick = () => {
+  button.onclick = event => {
+    // 删除按钮位于折叠标题中，避免删除同时触发标题的默认切换。
+    event?.preventDefault(); event?.stopPropagation();
     if (busy) return;
     handler(); changed(); renderEditor();
   };
@@ -233,21 +239,38 @@ function renderEditor() {
   if (!draft) return;
   document.getElementById('config-count').textContent = `${draft.buses.length} 路总线 · ${draft.buses.reduce((n, bus) => n + bus.slaves.length, 0)} 个从站`;
   for (const [busIndex, bus] of draft.buses.entries()) {
-    const card = element('section', 'bus-editor');
-    const heading = element('div', 'editor-heading');
-    const title = element('h3', '', bus.name || `RS485 总线 ${busIndex + 1}`);
+    const card = element('details', 'bus-editor');
+    // 直接保存节点，重绘时同步读取 open，避免异步 toggle 事件丢失状态。
+    card.open = busGroups.get(bus)?.open ?? true;
+    busGroups.set(bus, card);
+    const heading = element('summary', 'editor-heading');
+    const title = element('span', 'editor-title');
+    const path = element('span', 'editor-path');
+    const updateBusTitle = () => {
+      title.textContent = `${bus.name || `RS485 总线 ${busIndex + 1}`} · ${bus.slaves.length} 个从站`;
+      path.textContent = bus.link || '未配置串口路径';
+    };
+    updateBusTitle();
     heading.append(title, action('删除总线', () => draft.buses.splice(busIndex, 1), true));
+    heading.append(path);
     const fields = element('div', 'config-grid bus-fields');
-    field(fields, bus, 'name', '总线名称', { required: true, afterChange: () => { title.textContent = bus.name || '未命名总线'; } });
-    field(fields, bus, 'link', '串口软链接路径', { required: true, placeholder: '/srv/serial-sim/tty0' });
+    field(fields, bus, 'name', '总线名称', { required: true, afterInput: updateBusTitle });
+    field(fields, bus, 'link', '串口软链接路径', { required: true, placeholder: '/srv/serial-sim/tty0', afterInput: updateBusTitle });
     card.append(heading, fields, deviceAdder(bus));
     for (const [slaveIndex, slave] of bus.slaves.entries()) {
-      const station = element('section', 'slave-editor');
-      const stationHeading = element('div', 'editor-heading');
-      const stationTitle = element('h4', '', `从站 ${slave.device_id}`);
+      const station = element('details', 'slave-editor');
+      station.open = slaveGroups.get(slave)?.open ?? false;
+      slaveGroups.set(slave, station);
+      const stationHeading = element('summary', 'editor-heading');
+      const stationTitle = element('span', 'editor-title');
+      const updateStationTitle = () => {
+        const model = slave.model?.kind === 'huawei_v3' ? '华为逆变器' : (slave.model?.kind || '自定义 Modbus 设备');
+        stationTitle.textContent = `从站 ${slave.device_id} · ${model} · ${slave.registers.length} 个寄存器`;
+      };
+      updateStationTitle();
       stationHeading.append(stationTitle, action('删除从站', () => bus.slaves.splice(slaveIndex, 1), true));
       const stationFields = element('div', 'config-grid');
-      field(stationFields, slave, 'device_id', '站号（1～247）', { numeric: true, integer: true, min: 1, max: 247, required: true, afterChange: () => { stationTitle.textContent = `从站 ${slave.device_id}`; } });
+      field(stationFields, slave, 'device_id', '站号（1～247）', { numeric: true, integer: true, min: 1, max: 247, required: true, afterInput: updateStationTitle });
       field(stationFields, slave, 'response_delay_ms', '响应延迟（毫秒）', { numeric: true, integer: true, min: 0, max: 60000, required: true });
       field(stationFields, slave, 'unmapped_policy', '未配置地址', { choices: choices([['exception', '返回异常码 0x02'], ['zero', '返回 0']]) });
       station.append(stationHeading, stationFields);
@@ -325,8 +348,21 @@ form.onsubmit = async event => {
 
 document.getElementById('add-bus').onclick = () => {
   if (!draft || busy) return;
-  draft.buses.push(newBus(draft.buses)); changed(); renderEditor();
+  const bus = newBus(draft.buses);
+  busGroups.set(bus, { open: true });
+  for (const slave of bus.slaves) slaveGroups.set(slave, { open: true });
+  draft.buses.push(bus); changed(); renderEditor();
 };
+function setGroupsOpen(open) {
+  if (!draft || busy) return;
+  for (const bus of draft.buses) {
+    busGroups.get(bus).open = open;
+    for (const slave of bus.slaves) slaveGroups.get(slave).open = open;
+  }
+  console.info(open ? '配置总线与从站已全部展开' : '配置总线与从站已全部收起');
+}
+document.getElementById('expand-config').onclick = () => setGroupsOpen(true);
+document.getElementById('collapse-config').onclick = () => setGroupsOpen(false);
 document.getElementById('reload-config').onclick = loadConfig;
 document.getElementById('retry-device-templates').onclick = readDeviceTemplates;
 document.getElementById('show-config').onclick = () => {

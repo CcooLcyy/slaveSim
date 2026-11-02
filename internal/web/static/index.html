@@ -149,6 +149,14 @@
   .bus-editor { border: 1px solid var(--border); border-radius: 6px; padding: 14px; background: var(--surface-subtle); }
   .editor-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
   .editor-heading h3, .editor-heading h4 { margin: 0; }
+  .bus-editor > summary, .slave-editor > summary { cursor: pointer; list-style: none; margin-bottom: 0; flex-wrap: wrap; }
+  .bus-editor > summary::-webkit-details-marker, .slave-editor > summary::-webkit-details-marker { display: none; }
+  .bus-editor > summary::before, .slave-editor > summary::before { content: '▸'; color: var(--muted); }
+  .bus-editor[open] > summary::before, .slave-editor[open] > summary::before { content: '▾'; }
+  .bus-editor[open] > summary, .slave-editor[open] > summary { margin-bottom: 12px; }
+  .editor-title { flex: 1; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+  .editor-path { flex-basis: 100%; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+  .bus-editor > summary:focus-visible, .slave-editor > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
   .config-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); gap: 12px; margin: 12px 0; }
   .bus-fields { grid-template-columns: minmax(175px, 1fr) minmax(260px, 2fr); }
   .config-field { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--text-secondary); }
@@ -263,6 +271,8 @@
         <div class="toolbar config-toolbar">
           <button id="add-bus" type="button">新增 RS485 总线</button>
           <button id="reload-config" type="button">重新读取</button>
+          <button id="expand-config" type="button">全部展开</button>
+          <button id="collapse-config" type="button">全部收起</button>
           <button id="retry-device-templates" type="button" hidden>重试预置加载</button>
           <button id="save-config" class="primary" type="submit">保存并应用</button>
           <span class="tag" id="config-count"></span>
