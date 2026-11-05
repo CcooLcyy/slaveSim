@@ -36,6 +36,21 @@ async function editor(fetch, config = { buses: [configuredBus()] }) {
 const select = root => all(root).find(node => node.name === 'device-type');
 const add = root => all(root).find(node => node.textContent === '添加设备');
 
+// 实际删除按钮清空最后一台后可保存，零状态读回不自动补建默认设备。
+test('删除最后一台设备或全部总线后可保存零设备配置', async () => {
+  for (const removeBus of [false, true]) {
+    const ui = await editor(async () => ({ ok: true, json: async () => catalog }));
+    try {
+      all(ui.root).find(node => node.textContent === (removeBus ? '删除总线' : '删除从站')).onclick();
+      await ui.document.getElementById('config-form').onsubmit({ preventDefault() {} });
+      const saved = JSON.parse(ui.calls.find(call => call.options?.method === 'PUT').options.body);
+      assert.equal(saved.buses.length, removeBus ? 0 : 1);
+      assert.equal(saved.buses.reduce((count, bus) => count + bus.slaves.length, 0), 0);
+      assert.match(ui.document.getElementById('config-status').textContent, /配置已保存并应用/);
+    } finally { ui.restore(); }
+  }
+});
+
 test('设备预置加载失败仍可新增自定义并保存旧配置，不触发自动应用', async () => {
   const ui = await editor(async () => { throw new TypeError('Failed to fetch'); });
   try {
@@ -140,7 +155,7 @@ test('模型配置扰动默认开启，保存关闭值且不改动原配置', as
 const cards = (root, className) => all(root).filter(node => node.className?.split(' ').includes(className));
 const summaryText = node => all(node.children.find(child => child.tagName === 'summary')).map(child => child.textContent).join(' ');
 
-test('新建总线默认为空，保存提示添加从站，手动添加首台设备后站号为1并可保存', async () => {
+test('新建总线默认为空且可保存，手动添加首台设备后站号为1并可再次保存', async () => {
   const ui = await editor(async () => ({ ok: true, json: async () => catalog }));
   try {
     ui.document.getElementById('add-bus').onclick();
@@ -149,14 +164,15 @@ test('新建总线默认为空，保存提示添加从站，手动添加首台�
     assert.equal(cards(bus, 'slave-editor').length, 0);
     assert.match(summaryText(bus), /0 个从站/);
     await ui.document.getElementById('config-form').onsubmit({ preventDefault() {} });
-    assert.equal(ui.calls.filter(call => call.options?.method === 'PUT').length, 0);
-    assert.match(ui.document.getElementById('config-status').textContent, /至少添加一个从站/);
+    assert.equal(ui.calls.filter(call => call.options?.method === 'PUT').length, 1);
+    const empty = JSON.parse(ui.calls.find(call => call.options?.method === 'PUT').options.body);
+    assert.equal(empty.buses[1].slaves.length, 0);
     add(bus).onclick();
     const station = cards(cards(ui.root, 'bus-editor').at(-1), 'slave-editor')[0];
     assert.equal(station.open, true);
     assert.match(summaryText(station), /从站 1/);
     await ui.document.getElementById('config-form').onsubmit({ preventDefault() {} });
-    const saved = JSON.parse(ui.calls.find(call => call.options?.method === 'PUT').options.body);
+    const saved = JSON.parse(ui.calls.filter(call => call.options?.method === 'PUT').at(-1).options.body);
     assert.equal(saved.buses[1].slaves.length, 1);
     assert.equal(saved.buses[1].slaves[0].device_id, 1);
     assert.equal(saved.buses[0].slaves.length, 1);

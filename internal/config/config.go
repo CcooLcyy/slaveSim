@@ -191,11 +191,8 @@ func Save(path string, cfg *Config) error {
 	return nil
 }
 
-// Validate 校验配置的完整性与取值范围。
+// Validate 校验配置的完整性与取值范围；允许零总线及零从站以保存清空状态。
 func (c *Config) Validate() error {
-	if len(c.Buses) == 0 {
-		return fmt.Errorf("配置中没有任何总线")
-	}
 	names, links := map[string]bool{}, map[string]bool{}
 	for i := range c.Buses {
 		b := &c.Buses[i]
@@ -218,10 +215,6 @@ func (c *Config) Validate() error {
 			return fmt.Errorf("串口路径 %s 重复", b.Link)
 		}
 		names[b.Name], links[b.Link] = true, true
-		if len(b.Slaves) == 0 {
-			return fmt.Errorf("总线 %s 没有配置任何从站", b.Name)
-		}
-
 		seenID := map[uint8]bool{}
 		for j := range b.Slaves {
 			s := &b.Slaves[j]

@@ -12,7 +12,6 @@ func validConfig() Config {
 
 func TestValidateRejectsInvalidConfigurations(t *testing.T) {
 	tests := map[string]func(*Config){
-		"空总线":  func(c *Config) { c.Buses = nil },
 		"空白名称": func(c *Config) { c.Buses[0].Name = "  " },
 		"重复名称": func(c *Config) { b := c.Buses[0]; b.Link += "-2"; c.Buses = append(c.Buses, b) },
 		"规范化重复路径": func(c *Config) {
@@ -50,6 +49,29 @@ func TestValidateRejectsInvalidConfigurations(t *testing.T) {
 				t.Fatal("非法配置被接受")
 			}
 		})
+	}
+}
+
+// 零总线和空总线均可持久化重读，仍须校验已保留总线的名称与路径。
+func TestZeroDevicesConfigurationRoundTrip(t *testing.T) {
+	for _, c := range []Config{{Buses: []Bus{}}, {Buses: []Bus{{Name: "空总线", Link: "/tmp/slavesim-test/empty", Slaves: []Slave{}}}}} {
+		path := filepath.Join(t.TempDir(), "config.json")
+		if err := Save(path, &c); err != nil {
+			t.Fatal(err)
+		}
+		got, err := Load(path)
+		if err != nil || len(got.Buses) != len(c.Buses) {
+			t.Fatalf("零设备配置未能保存重读: %+v, %v", got, err)
+		}
+		for _, bus := range got.Buses {
+			if len(bus.Slaves) != 0 {
+				t.Fatal("零设备配置出现额外从站")
+			}
+		}
+	}
+	invalid := Config{Buses: []Bus{{Name: "空总线", Link: "relative", Slaves: []Slave{}}}}
+	if err := invalid.Validate(); err == nil {
+		t.Fatal("空总线的非法串口路径未被拒绝")
 	}
 }
 

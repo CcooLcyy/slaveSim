@@ -69,6 +69,8 @@ export function createRuntimeWorkspace(root, options = {}) {
     }
     connection.append(element('div', 'bus-path-hint', '下位机 serial.device 请填写固定配置路径，重启后无需修改。实际设备编号由系统动态分配，重启后可能变化。'), status);
     entry.body = element('div', 'bus-devices');
+    entry.empty = element('p', 'bus-empty-devices', '当前总线为0台模拟设备，可进入 RS485 配置添加设备。');
+    entry.body.append(entry.empty);
     entry.node.append(heading, connection, entry.body); content.append(entry.node);
     return entry;
   }
@@ -157,6 +159,7 @@ export function createRuntimeWorkspace(root, options = {}) {
       if (!entry) { entry = makeBus(bus, key); buses.set(key, entry); }
       entry.bus = bus; entry.label.textContent = bus.name; entry.title.textContent = bus.name;
       const slaves = bus.slaves || [];
+      entry.empty.hidden = slaves.length > 0;
       const total = slaves.reduce((sum, slave) => sum + (slave.registers || []).length, 0);
       entry.count.textContent = `${slaves.length} 个设备 · ${total} 个寄存器`;
       entry.summary.textContent = `${slaves.length} 个设备 / ${total} 个寄存器`;

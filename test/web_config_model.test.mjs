@@ -9,7 +9,7 @@ test('新增总线沿用挂载目录并避开既有名称和路径', () => {
   assert.equal(second.name, 'RS485-2');
   assert.equal(second.link, '/home/megsky/serial-sim/tty1');
   assert.deepEqual(second.slaves, []);
-  assert.match(validateDraft({ buses: [...buses, second] }), /至少添加一个从站/);
+  assert.equal(validateDraft({ buses: [...buses, second] }), '');
   second.slaves.push(newSlave());
   assert.equal(second.slaves[0].device_id, 1);
   assert.equal(validateDraft({ buses: [...buses, second] }), '');
@@ -38,9 +38,8 @@ test('服务器空字符串策略恢复为默认异常响应', () => {
   assert.equal(normalizeConfig(cfg).buses[0].slaves[0].unmapped_policy, 'exception');
 });
 
-// UI 在保存前阻止空列表、重复路径、非法编号和来源参数。
+// UI 在保存前阻止重复路径、非法编号和来源参数。
 test('非法配置返回可定位的中文原因', () => {
-  assert.match(validateDraft({ buses: [] }), /总线/);
   const cfg = { buses: [{ ...newBus([]), slaves: [newSlave()] }] };
   cfg.buses.push(structuredClone(cfg.buses[0]));
   assert.match(validateDraft(cfg), /重复/);
@@ -52,6 +51,13 @@ test('非法配置返回可定位的中文原因', () => {
   cfg.buses[0].slaves[0].registers[0].source.min = 10;
   cfg.buses[0].slaves[0].registers[0].source.max = 1;
   assert.match(validateDraft(cfg), /最大值/);
+});
+
+// 清空设备允许保存零台，保留的空总线仍须有有效名称和路径。
+test('零总线和零从站可以保存，空总线参数仍须有效', () => {
+  assert.equal(validateDraft({ buses: [] }), '');
+  assert.equal(validateDraft({ buses: [newBus()] }), '');
+  assert.match(validateDraft({ buses: [{ ...newBus(), name: ' ' }] }), /不能为空/);
 });
 
 // 各类来源只显示实际需要的参数，避免配置者误用。

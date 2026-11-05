@@ -180,7 +180,7 @@ func TestConfigurationAPIRejectsWithoutChangingState(t *testing.T) {
 	handler := s.Handler()
 	original, _ := os.ReadFile(path)
 	before := s.Snapshot().Buses[0].SlavePath
-	for _, body := range []string{`{"buses":[]}`, `{"buses":[]} {}`, `{"unknown":true}`, `null`} {
+	for _, body := range []string{`{"buses":[]} {}`, `{"unknown":true}`, `null`} {
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, httptest.NewRequest(http.MethodPut, "/api/config", bytes.NewBufferString(body)))
 		if w.Code != http.StatusBadRequest {
@@ -213,5 +213,65 @@ func TestConfigurationAPIRejectsWithoutChangingState(t *testing.T) {
 	}
 	if _, err := os.Lstat(b.Link); !os.IsNotExist(err) {
 		t.Fatal("新增软链接没有回滚")
+	}
+}
+
+// 删除全部设备或全部总线后实际状态为零，落盘重启仍为零，再添加设备恢复运行。
+func TestConfigurationAPIClearDevicesAndCreateAgain(t *testing.T) {
+	for _, keepBus := range []bool{true, false} {
+		t.Run(map[bool]string{true: "保留空总线", false: "删除所有总线"}[keepBus], func(t *testing.T) {
+			c, path := configFixture(t)
+			logs := eventbus.NewLog(64)
+			m, err := sim.NewManager(path, &c, logs)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = m.Close() })
+			cleared := c.Clone()
+			if keepBus {
+				cleared.Buses[0].Slaves = []config.Slave{}
+			} else {
+				cleared.Buses = []config.Bus{}
+			}
+			raw, _ := json.Marshal(cleared)
+			w := httptest.NewRecorder()
+			s := New(m, logs)
+			s.Handler().ServeHTTP(w, httptest.NewRequest(http.MethodPut, "/api/config", bytes.NewReader(raw)))
+			if w.Code != http.StatusOK {
+				t.Fatalf("清空设备失败: %d %s", w.Code, w.Body.String())
+			}
+			state := s.Snapshot()
+			if len(state.Buses) != len(cleared.Buses) {
+				t.Fatal("清空配置未应用到运行总线")
+			}
+			for _, bus := range state.Buses {
+				if len(bus.Slaves) != 0 {
+					t.Fatal("运行状态仍存在已删除设备")
+				}
+			}
+			if !keepBus {
+				if _, err := os.Lstat(c.Buses[0].Link); !os.IsNotExist(err) {
+					t.Fatalf("零总线未释放旧PTY路径: %v", err)
+				}
+			}
+			disk, err := config.Load(path)
+			if err != nil || !reflect.DeepEqual(disk, cleared) {
+				t.Fatalf("清空配置未持久化: %+v, %v", disk, err)
+			}
+			if err := m.Close(); err != nil {
+				t.Fatal(err)
+			}
+			restarted, err := sim.NewManager(path, disk, logs)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer restarted.Close()
+			if err := restarted.Apply(&c); err != nil {
+				t.Fatalf("零设备状态不能重新添加设备: %v", err)
+			}
+			if state := New(restarted, logs).Snapshot(); len(state.Buses) != 1 || len(state.Buses[0].Slaves) != 1 {
+				t.Fatal("重新添加设备后运行状态错误")
+			}
+		})
 	}
 }

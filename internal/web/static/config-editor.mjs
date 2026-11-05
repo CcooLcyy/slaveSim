@@ -265,7 +265,7 @@ function renderEditor() {
     field(fields, bus, 'name', '总线名称', { required: true, afterInput: updateBusTitle });
     field(fields, bus, 'link', '串口软链接路径', { required: true, placeholder: '/srv/serial-sim/tty0', afterInput: updateBusTitle });
     card.append(heading, fields, deviceAdder(bus));
-    if (!bus.slaves.length) card.append(element('p', 'config-empty', '暂无从站，请选择设备类型并点击“添加设备”；保存前须至少添加一个从站。'));
+    if (!bus.slaves.length) card.append(element('p', 'config-empty', '当前总线为0台模拟设备，可直接保存；选择设备类型并点击“添加设备”可从零开始配置。'));
     for (const [slaveIndex, slave] of bus.slaves.entries()) {
       const station = element('details', 'slave-editor');
       station.open = slaveGroups.get(slave)?.open ?? false;
@@ -347,7 +347,7 @@ form.onsubmit = async event => {
     await readResponse(await fetch('/api/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(draft) }));
     dirty = false;
     message('配置已保存并应用；临时手动值已重置，行为模型按配置初值重建');
-    console.info('多路 RS485 配置已保存并应用', { buses: draft.buses.length });
+    console.info('多路 RS485 配置已保存并应用', { buses: draft.buses.length, devices: draft.buses.reduce((count, bus) => count + bus.slaves.length, 0) });
     window.dispatchEvent(new Event('config-applied'));
   } catch (error) {
     message(`保存失败，草稿已保留：${error.message}`, true);

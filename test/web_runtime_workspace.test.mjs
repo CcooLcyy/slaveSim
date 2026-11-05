@@ -38,6 +38,25 @@ function fixture(options = {}) {
   return { root, document, workspace: createRuntimeWorkspace(root, options) };
 }
 
+// 清空后必须移除旧设备反馈，明确显示零台，再添加时只显示新设备。
+test('运行状态清空设备显示零台并移除旧反馈，之后可重新添加', () => {
+  const { root, workspace } = fixture();
+  workspace.update(state());
+  const cleared = state(); cleared.buses[0].slaves = []; cleared.buses = cleared.buses.slice(0, 1);
+  workspace.update(cleared);
+  const bus = busCard(root, 'Huawei-V3');
+  assert.equal(classes(root, 'runtime-device').length, 0);
+  const empty = classes(bus, 'bus-empty-devices')[0];
+  assert.equal(empty.hidden, false);
+  assert.match(empty.textContent, /0台/);
+  workspace.update(state());
+  assert.equal(empty.hidden, true);
+  assert.equal(classes(root, 'runtime-device').length, 3);
+  workspace.update({ now: 1, buses: [] });
+  assert.equal(classes(root, 'bus-workspace').length, 0);
+  assert.equal(classes(root, 'runtime-empty')[0].hidden, false);
+});
+
 function slave(id, modeled = true, active = 50) {
   return {
     device_id: id,

@@ -151,7 +151,11 @@ func (m *Manager) apply(cfg *config.Config, save bool) error {
 		}
 	}
 	if save {
-		m.log.Publish(eventbus.Event{Level: eventbus.LevelInfo, Summary: fmt.Sprintf("Web 配置已保存并应用，共 %d 路 RS485 总线", len(next))})
+		deviceCount := 0
+		for _, bus := range cfg.Buses {
+			deviceCount += len(bus.Slaves)
+		}
+		m.log.Publish(eventbus.Event{Level: eventbus.LevelInfo, Summary: fmt.Sprintf("Web 配置已保存并应用，共 %d 路 RS485 总线、%d 个模拟设备", len(next), deviceCount)})
 	}
 	return nil
 }

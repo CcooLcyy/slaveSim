@@ -53,14 +53,14 @@ export function sourceFields(kind) {
 const integerIn = (value, min, max) => Number.isInteger(value) && value >= min && value <= max;
 // 最终校验仍由服务器完成，页面先提示常见输入错误并保留草稿。
 export function validateDraft(config) {
-  if (!config.buses?.length) return '请至少配置一路 RS485 总线';
+  if (!Array.isArray(config.buses)) return '总线配置必须是列表';
   const names = new Set();
   const paths = new Set();
   for (const bus of config.buses) {
     if (!bus.name.trim() || !bus.link.trim()) return '总线名称和串口路径不能为空';
     if (names.has(bus.name.trim()) || paths.has(bus.link.trim())) return `总线 ${bus.name} 的名称或串口路径重复`;
     names.add(bus.name.trim()); paths.add(bus.link.trim());
-    if (!bus.slaves?.length) return `总线 ${bus.name} 请至少添加一个从站`;
+    if (!Array.isArray(bus.slaves)) return `总线 ${bus.name} 的从站配置必须是列表`;
     const ids = new Set();
     for (const slave of bus.slaves) {
       const prefix = `总线 ${bus.name} / 站号 ${slave.device_id}`;
