@@ -7,6 +7,18 @@ const status = (extra = {}) => ({ enabled: true, current_version: 'v1', latest_v
   channel: 'ci', state: 'available', message: '发现新版本', update_available: true, job_id: '', ...extra });
 const response = (body, code = 200) => ({ ok: code < 400, status: code, json: async () => body });
 
+test('自动更新展示一分钟间隔和下次检查，兼容旧服务手动模式', () => {
+  const automatic = getUpdateView(status({ auto_update_enabled: true, check_interval_seconds: 60,
+    next_check_at: '2026-11-05T08:01:00+00:00' }));
+  assert.match(automatic.automaticMode, /每60秒.*自动安装/);
+  assert.match(automatic.nextCheck, /2026/);
+  assert.equal(getUpdateView(status()).automaticMode, '手动更新');
+  assert.match(getUpdateView(status({ auto_update_enabled: false })).automaticMode, /已关闭/);
+  assert.equal(getUpdateView(status({ auto_update_enabled: true, next_check_at: '无效时间' })).nextCheck, '等待调度');
+  assert.equal(automatic.checkDisabled, false);
+  assert.equal(automatic.applyDisabled, false);
+});
+
 test('所有忙状态以及缺少可用来源时禁用操作', () => {
   for (const state of ['checking', 'updating']) {
     const view = getUpdateView(status({ state }));
@@ -36,11 +48,11 @@ test('管理进程配置的其他 HTTPS 公开清单也支持网页更新', () =
   assert.equal(publicSource(custom), custom);
 });
 
-test('加载与恢复正在执行的任务只查询状态，不自动更新', async () => {
+test('加载与恢复后台自动更新任务只查询状态，不重复提交安装', async () => {
   const calls = [];
   const client = createUpdateClient({ fetch: async (url, options) => {
     calls.push({ url, options });
-    return response(status({ state: 'updating', job_id: 'existing-job' }));
+    return response(status({ state: 'updating', job_id: 'existing-job', auto_update_enabled: true, check_interval_seconds: 60 }));
   }});
   await client.refresh();
   await client.refresh();

@@ -4,6 +4,7 @@ import argparse
 import copy
 import http.client
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
@@ -153,9 +154,12 @@ class Manager:
         self.guard = threading.RLock()
         self.lifecycle = threading.RLock()
         self.stopping = threading.Event()
-        self.child = self.worker = self.monitor = None
+        self.child = self.worker = self.monitor = self.automatic = None
         self.busy = False
         self.source_url, config_error = "", ""
+        self.auto_update_enabled = False
+        self.check_interval_seconds = 60
+        self.next_check_at = ""
         settings_path = Path(updater_config)
         if settings_path.exists():
             try:
@@ -164,7 +168,15 @@ class Manager:
                 parsed = update.validate_url(source)
                 if parsed.path.split("/")[-2:] not in (["ci", "latest.json"], ["stable", "latest.json"]):
                     raise update.UpdateError("清单地址必须以 ci/latest.json 或 stable/latest.json 结尾")
+                automatic = settings.get("auto_update", True)
+                interval = settings.get("check_interval_seconds", 60)
+                if type(automatic) is not bool:
+                    raise update.UpdateError("auto_update 必须为布尔值")
+                if type(interval) is not int or not 1 <= interval <= 86400:
+                    raise update.UpdateError("check_interval_seconds 必须为1至86400秒的整数")
                 self.source_url = source
+                self.auto_update_enabled = automatic
+                self.check_interval_seconds = interval
             except (update.UpdateError, TypeError, ValueError) as exc:
                 config_error = "更新配置无效：" + str(exc)
         state_path = self.runtime_dir / "state.json"
@@ -177,7 +189,8 @@ class Manager:
             if identity["version"].endswith("-dev"):
                 channel = ""
             self.current = dict(identity, channel=channel, release="seed")
-        self.result = dict(latest_version="", state="idle", message=config_error or "等待手动检查更新",
+        self.result = dict(latest_version="", state="idle", message=config_error or
+                           ("等待自动检查并安装更新" if self.auto_update_enabled else "等待手动检查更新"),
                            update_available=False, job_id="")
         task_path = self.runtime_dir / "task.json"
         if task_path.exists():
@@ -215,6 +228,8 @@ class Manager:
     def status(self):
         with self.guard:
             return dict(enabled=bool(self.source_url), current_version=self.current["version"],
+                        auto_update_enabled=self.auto_update_enabled,
+                        check_interval_seconds=self.check_interval_seconds, next_check_at=self.next_check_at,
                         source_url=self.source_url, channel=self.current.get("channel", "") or
                         (urlsplit(self.source_url).path.split("/")[-2] if self.source_url else ""), **self.result)
 
@@ -245,6 +260,36 @@ class Manager:
     def ensure_running(self):
         if self.stopping.is_set():
             raise update.UpdateError("管理进程正在退出，更新任务已取消")
+
+    def automatic_tick(self):
+        """后台检查并安装复用手动更新任务，忙碌或退出时不启动重叠任务。"""
+        with self.guard:
+            if not self.auto_update_enabled or not self.source_url or self.stopping.is_set():
+                return False
+            if self.busy:
+                update.log("[slaveSim 管理] 本次自动检查跳过：已有更新任务运行")
+                return False
+            try:
+                self.begin("apply")
+            except Exception as exc:
+                update.log("[slaveSim 管理] 自动更新任务启动失败，下个周期重试：" + str(exc))
+                return False
+        update.log("[slaveSim 管理] 已启动自动检查任务，发现新版本时将自动安装")
+        return True
+
+    def automatic_loop(self):
+        """管理进程定时运行，不依赖浏览器打开，停止事件可立即打断等待。"""
+        try:
+            while not self.stopping.is_set():
+                with self.guard:
+                    self.next_check_at = datetime.fromtimestamp(
+                        time.time() + self.check_interval_seconds, timezone.utc).isoformat(timespec="seconds")
+                if self.stopping.wait(self.check_interval_seconds):
+                    break
+                self.automatic_tick()
+        finally:
+            with self.guard:
+                self.next_check_at = ""
 
     def available(self, manifest):
         # 本地开发版本没有发布身份，第一次显式安装允许切换到配置的通道。
@@ -393,9 +438,11 @@ class Manager:
     def healthy(self, timeout=30):
         config = update.read_json(self.config)
         expected = config.get("buses", []) if isinstance(config, dict) else []
+        if not isinstance(expected, list):
+            raise update.UpdateError("现场总线配置必须为列表")
         names = {bus.get("name") for bus in expected if isinstance(bus, dict)}
-        if not expected or len(names) != len(expected):
-            raise update.UpdateError("现场配置缺少总线或总线名称重复")
+        if len(names) != len(expected) or any(not isinstance(name, str) or not name.strip() for name in names):
+            raise update.UpdateError("现场总线名称无效或重复")
         deadline = time.monotonic() + timeout
         while not self.stopping.is_set() and time.monotonic() < deadline:
             if self.child is None or self.child.poll() is not None:
@@ -406,7 +453,10 @@ class Manager:
                 if len(raw) <= update.MAX_MANIFEST:
                     state = json.loads(raw)
                     buses = state.get("buses", []) if isinstance(state, dict) else []
-                    if (isinstance(buses, list) and len(buses) == len(expected)
+                    # Go零总线快照的nil切片编码为null，仅在配置也为空时按零总线处理。
+                    if isinstance(state, dict) and "buses" in state and buses is None and not expected:
+                        buses = []
+                    if (isinstance(state, dict) and "buses" in state and isinstance(buses, list) and len(buses) == len(expected)
                             and all(isinstance(bus, dict) and bus.get("slave_path") for bus in buses)
                             and {bus.get("name") for bus in buses} == names):
                         return True
@@ -431,6 +481,10 @@ class Manager:
                 durable_json(self.runtime_dir / "state.json", self.current)
         self.monitor = threading.Thread(target=self.supervise, daemon=True, name="child-supervisor")
         self.monitor.start()
+        if self.auto_update_enabled:
+            self.automatic = threading.Thread(target=self.automatic_loop, daemon=True, name="automatic-updater")
+            self.automatic.start()
+            update.log("[slaveSim 管理] 已启用自动检查并安装，每" + str(self.check_interval_seconds) + "秒检查一次")
 
     def supervise(self):
         failures = []
@@ -463,6 +517,8 @@ class Manager:
             self.worker.join(timeout=3)
         if self.monitor and self.monitor is not threading.current_thread():
             self.monitor.join(timeout=2)
+        if self.automatic and self.automatic is not threading.current_thread():
+            self.automatic.join(timeout=2)
 
 
 class RuntimeServer(ThreadingHTTPServer):

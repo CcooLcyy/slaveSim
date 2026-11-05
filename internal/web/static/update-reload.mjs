@@ -8,6 +8,7 @@ export function createUpdateReload({ fetch: fetchImpl, reload, onReady = () => {
   let probing = false;
   let reloaded = false;
   let readyKey = null;
+  let automaticBaselineVersion = null;
 
   function begin(snapshot) {
     if (reloaded) return;
@@ -22,13 +23,23 @@ export function createUpdateReload({ fetch: fetchImpl, reload, onReady = () => {
       readyKey = null;
       return false;
     }
+    const version = text(status.current_version);
+    if (status.auto_update_enabled === true && automaticBaselineVersion === null && version) {
+      automaticBaselineVersion = version;
+    }
+    // 后台安装可能在两次轮询间完成，只在本页建立基线后的实际版本变化时接续刷新。
+    const automaticChanged = status.auto_update_enabled === true && automaticBaselineVersion
+      && version && version !== automaticBaselineVersion && ['succeeded', 'current'].includes(status.state);
+    if (automaticChanged && !armed) {
+      armed = { baseline: { job: '', version: automaticBaselineVersion }, updatingJob: null };
+    }
     if (status.state === 'updating') {
       if (!armed) begin(snapshot);
       armed.updatingJob = text(status.job_id);
       readyKey = null;
       return false;
     }
-    if (status.state !== 'succeeded') {
+    if (status.state !== 'succeeded' && !automaticChanged) {
       armed = null;
       readyKey = null;
       return false;
@@ -57,7 +68,9 @@ export function createUpdateReload({ fetch: fetchImpl, reload, onReady = () => {
       });
       if (!response.ok) return false;
       state = await response.json();
-      if (!state || !Array.isArray(state.buses)) return false;
+      // Go 的零总线切片编码为null；只接受显式总线字段，不把缺字段或其他结构当作恢复。
+      if (!state || typeof state !== 'object' || Array.isArray(state) || !Object.hasOwn(state, 'buses')
+          || (state.buses !== null && !Array.isArray(state.buses))) return false;
     } catch {
       // 下一次更新状态轮询会重试，断线期间不重发更新操作。
       return false;

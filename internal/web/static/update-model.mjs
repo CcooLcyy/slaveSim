@@ -35,8 +35,16 @@ export function getUpdateView(status, flags = {}) {
   else if (status && !source) message = '未配置可用的公开更新源，请由管理员完成配置。';
   else if (status && !status.enabled) message = text(status.message) || '网页更新未启用。';
   if (flags.disconnected || flags.unavailable) tone = 'neutral';
+  const automatic = status?.auto_update_enabled === true;
+  const interval = Number.isInteger(status?.check_interval_seconds) && status.check_interval_seconds > 0
+    ? status.check_interval_seconds : 60;
+  const nextCheck = automatic && text(status?.next_check_at) ? new Date(status.next_check_at) : null;
   return {
     source, message, tone, busy: isBusy,
+    automaticMode: automatic ? `每${interval}秒自动检查并自动安装` : status?.auto_update_enabled === false
+      ? '自动更新已关闭' : status ? '手动更新' : '正在读取自动更新状态…',
+    nextCheck: automatic ? nextCheck && Number.isFinite(nextCheck.getTime())
+      ? nextCheck.toLocaleString('zh-CN', { hour12: false }) : '等待调度' : '—',
     currentVersion: text(status?.current_version) || '—', latestVersion: text(status?.latest_version) || '待检查',
     channel: status?.channel === 'ci' ? '测试通道' : status?.channel === 'stable' ? '稳定通道' : '—',
     checkDisabled: Boolean(disabled), applyDisabled: Boolean(disabled || status?.update_available !== true),
@@ -44,7 +52,7 @@ export function getUpdateView(status, flags = {}) {
     badge: flags.disconnected ? '重连中' : flags.unavailable ? '不可用' : status && !source ? '未配置'
       : status && !status.enabled ? '未启用' : isBusy ? '处理中'
       : status?.update_available ? '可更新' : status?.state === 'succeeded' ? '已更新' : status?.state === 'error' ? '失败'
-      : status?.state === 'current' ? '最新版' : '手动更新',
+      : status?.state === 'current' ? '最新版' : automatic ? '自动更新' : '手动更新',
   };
 }
 

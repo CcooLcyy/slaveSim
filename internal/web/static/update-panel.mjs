@@ -21,6 +21,8 @@ if (panel) {
     el('current').textContent = view.currentVersion;
     el('latest').textContent = view.latestVersion;
     el('channel').textContent = view.channel;
+    el('automatic').textContent = view.automaticMode;
+    el('next-check').textContent = view.nextCheck;
     el('badge').textContent = view.badge;
     el('message').textContent = view.message;
     el('source').textContent = view.source || '未配置';

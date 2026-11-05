@@ -31,6 +31,28 @@ test('首次读取持久化的成功记录不会刷新，刷新后的新控制�
   }
 });
 
+test('自动安装错过更新中状态后，实际版本变化仍确认恢复并刷新一次', async () => {
+  for (const state of ['succeeded', 'current']) {
+    const h = harness();
+    await h.controller.observe(snapshot('current', { auto_update_enabled: true }));
+    await h.controller.observe(snapshot('current', { auto_update_enabled: true, latest_version: 'v2' }));
+    assert.equal(h.reloads(), 0);
+    await h.controller.observe(snapshot(state, { auto_update_enabled: true, current_version: 'v2', job_id: 'auto-job' }));
+    assert.equal(h.reloads(), 1);
+    assert.equal(h.calls[0][0], '/api/state');
+    await h.controller.observe(success({ auto_update_enabled: true }));
+    assert.equal(h.reloads(), 1);
+  }
+});
+
+test('首次读取自动更新历史成功记录仍只建立基线，不刷新循环', async () => {
+  const h = harness();
+  await h.controller.observe(success({ auto_update_enabled: true }));
+  await h.controller.observe(success({ auto_update_enabled: true }));
+  assert.equal(h.reloads(), 0);
+  assert.equal(h.calls.length, 0);
+});
+
 test('本页更新成功先确认模拟器状态恢复，再刷新一次', async () => {
   const h = harness();
   h.controller.begin(snapshot('available'));
@@ -113,12 +135,24 @@ test('没有提交或正在更新的证据，仅检查后取得成功历史不�
   assert.equal(h.reloads(), 0);
 });
 
+test('自动更新完成时零总线响应的null和空列表均确认恢复并刷新', async () => {
+  for (const buses of [null, []]) {
+    const state = { buses };
+    const h = harness(async () => response(state));
+    await h.controller.observe(snapshot('current', { auto_update_enabled: true }));
+    assert.equal(await h.controller.observe(success({ auto_update_enabled: true })), true);
+    assert.equal(h.reloads(), 1);
+    assert.deepEqual(h.ready, [state]);
+    assert.equal(h.calls.length, 1);
+  }
+});
+
 test('模拟器恢复探测的网络、HTTP、JSON和状态结构失败可在下一次轮询重试', async () => {
   const failures = [
     async () => { throw new TypeError('断线'); },
     async () => response({ buses: [] }, false),
     async () => ({ ok: true, json: async () => { throw new SyntaxError('无效 JSON'); } }),
-    ...[null, {}, { buses: {} }, { buses: null }].map(body => async () => response(body)),
+    ...[null, [], {}, { buses: {} }, { buses: 0 }, { buses: '' }].map(body => async () => response(body)),
   ];
   for (const failure of failures) {
     let attempt = 0;

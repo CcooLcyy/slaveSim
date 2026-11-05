@@ -82,7 +82,7 @@ class ManagerFixture(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
         self.settings = self.root / "updater.json"
-        self.settings.write_text(json.dumps(dict(manifest_url=BASE, command="ignored", automatic=True)), encoding="utf-8")
+        self.settings.write_text(json.dumps(dict(manifest_url=BASE, command="ignored", automatic=True, auto_update=False)), encoding="utf-8")
         self.identity = mock.patch.object(runtime, "binary_identity", return_value=dict(version=OLD["version"], commit=OLD["commit"]))
         self.identity.start()
         self.manager = runtime.Manager(self.root / "runtime", self.settings, seed=Path("seed"), probe=Path("probe"))
@@ -110,7 +110,7 @@ class ManagerFixture(unittest.TestCase):
 class ManagerTests(ManagerFixture):
 
     def test_status_contract_and_config_only_manifest(self):
-        self.assertEqual(set(self.manager.status()), set("enabled current_version latest_version source_url channel state message update_available job_id".split()))
+        self.assertEqual(set(self.manager.status()), set("enabled current_version latest_version source_url channel state message update_available job_id auto_update_enabled check_interval_seconds next_check_at".split()))
         self.assertEqual(self.manager.status()["source_url"], BASE)
         self.assertEqual(self.manager.status()["state"], "idle")
         missing = runtime.Manager(self.root / "disabled", self.root / "missing", seed=Path("seed"))
