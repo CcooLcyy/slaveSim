@@ -270,6 +270,7 @@
       <fieldset id="config-fields">
         <div class="toolbar config-toolbar">
           <button id="add-bus" type="button">新增 RS485 总线</button>
+          <button id="delete-all-buses" class="danger" type="button" disabled>删除全部总线</button>
           <button id="reload-config" type="button">重新读取</button>
           <button id="expand-config" type="button">全部展开</button>
           <button id="collapse-config" type="button">全部收起</button>
@@ -279,6 +280,7 @@
         </div>
         <p id="config-status" class="config-status" role="status" aria-live="polite">点击配置页后读取当前配置</p>
         <p id="device-template-status" class="config-status" role="status" aria-live="polite">点击配置页后读取预置设备</p>
+        <p class="config-hint">“删除全部总线”一次清空全部总线、从站及点表草稿，保存并应用后才生效；未保存时可重新读取恢复。保存清空配置会释放原串口PTY及软链接。</p>
         <p class="config-hint">每路总线对应一个独立虚拟串口，可挂多个从站。在总线的“设备类型”中选择自定义 Modbus 设备或完整预置设备，点击“添加设备”加入草稿；站号自动避开同总线已有设备，仍可手动修改。华为行为仿真联动功率与电参，其他静态点表预置按数值来源取值。串口路径须位于已共享的串口目录；保存并应用后才生效，临时手动值与模型运行状态会重置。</p>
         <div id="config-buses"></div>
       </fieldset>

@@ -36,6 +36,47 @@ async function editor(fetch, config = { buses: [configuredBus()] }) {
 const select = root => all(root).find(node => node.name === 'device-type');
 const add = root => all(root).find(node => node.textContent === '添加设备');
 
+// 批量清空只重绘一次草稿，包含空总线，不逐条删除或提前保存。
+test('删除全部总线一次清空草稿并可保存零总线', async () => {
+  const config = { buses: [configuredBus(), newBus([configuredBus()])] };
+  const ui = await editor(async () => ({ ok: true, json: async () => catalog }), config);
+  try {
+    const button = ui.document.getElementById('delete-all-buses');
+    assert.equal(button.disabled, false);
+    let renders = 0;
+    const replace = ui.root.replaceChildren.bind(ui.root);
+    ui.root.replaceChildren = (...nodes) => { renders++; replace(...nodes); };
+    button.onclick();
+    assert.equal(renders, 1);
+    assert.equal(button.disabled, true);
+    assert.equal(all(ui.root).filter(node => node.className === 'bus-editor').length, 0);
+    assert.equal(ui.document.getElementById('config-count').textContent, '0 路总线 · 0 个从站');
+    assert.match(ui.document.getElementById('config-status').textContent, /保存并应用后生效/);
+    assert.equal(ui.calls.filter(call => call.options?.method === 'PUT').length, 0);
+    assert.equal(config.buses.length, 2);
+    await ui.document.getElementById('config-form').onsubmit({ preventDefault() {} });
+    const saved = JSON.parse(ui.calls.find(call => call.options?.method === 'PUT').options.body);
+    assert.deepEqual(saved.buses, []);
+  } finally { ui.restore(); }
+});
+
+// 未保存清空可重新读取恢复；原本无总线时按钮禁用且直接调用也不标记修改。
+test('批量清空未保存可恢复，零总线按钮禁用', async () => {
+  for (const buses of [[configuredBus()], []]) {
+    const ui = await editor(async () => ({ ok: true, json: async () => catalog }), { buses });
+    try {
+      const button = ui.document.getElementById('delete-all-buses');
+      assert.equal(button.disabled, buses.length === 0);
+      button.onclick();
+      if (buses.length === 0) assert.equal(ui.document.getElementById('config-status').textContent, '已读取当前配置');
+      await ui.document.getElementById('reload-config').onclick();
+      assert.equal(all(ui.root).filter(node => node.className === 'bus-editor').length, buses.length);
+      assert.equal(button.disabled, buses.length === 0);
+      assert.equal(ui.calls.filter(call => call.options?.method === 'PUT').length, 0);
+    } finally { ui.restore(); }
+  }
+});
+
 // 实际删除按钮清空最后一台后可保存，零状态读回不自动补建默认设备。
 test('删除最后一台设备或全部总线后可保存零设备配置', async () => {
   for (const removeBus of [false, true]) {

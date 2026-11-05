@@ -244,6 +244,7 @@ function registerEditor(parent, slave, reg, index) {
 function renderEditor() {
   root.replaceChildren();
   deviceControls = [];
+  document.getElementById('delete-all-buses').disabled = !draft?.buses.length;
   if (!draft) return;
   document.getElementById('config-count').textContent = `${draft.buses.length} 路总线 · ${draft.buses.reduce((n, bus) => n + bus.slaves.length, 0)} 个从站`;
   for (const [busIndex, bus] of draft.buses.entries()) {
@@ -361,6 +362,15 @@ document.getElementById('add-bus').onclick = () => {
   busGroups.set(bus, { open: true });
   draft.buses.push(bus); changed(); renderEditor();
   console.info('空总线已加入配置草稿', { bus: bus.name, link: bus.link });
+};
+document.getElementById('delete-all-buses').onclick = () => {
+  if (!draft?.buses.length || busy) return;
+  const buses = draft.buses.length;
+  const devices = draft.buses.reduce((count, bus) => count + bus.slaves.length, 0);
+  draft.buses = [];
+  changed(); renderEditor();
+  message(`已从草稿删除全部${buses}路总线及${devices}台设备；保存并应用后生效，未保存可重新读取恢复`);
+  console.info('全部总线已从配置草稿删除，尚未保存应用', { buses, devices });
 };
 function setGroupsOpen(open) {
   if (!draft || busy) return;
