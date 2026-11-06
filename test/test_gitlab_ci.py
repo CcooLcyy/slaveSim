@@ -58,11 +58,13 @@ class GitLabCiTests(unittest.TestCase):
             del env[key]
             with self.subTest(missing=key), self.assertRaises(ValueError):
                 gitlab_ci.load_metadata(env)
+        tampered_version = original["VERSION"].replace("110405", "110406")
+        self.assertNotEqual(tampered_version, original["VERSION"], "篡改版本时间必须实际改变版本号")
         for key, value in (("CI_COMMIT_SHA", "b" * 40), ("COMMIT", "b" * 40),
                            ("BUILD_TIME", "2026-10-23T03:04:06Z"),
                            ("BUILD_TIME", "2026-10-23T03:04:05"),
                            ("IMAGE_TAG", original["IMAGE_TAG"] + "-other"),
-                           ("VERSION", original["VERSION"].replace("030405", "030406")),
+                           ("VERSION", tampered_version),
                            ("CHANNEL", "stable")):
             with self.subTest(field=key, value=value), self.assertRaises(ValueError):
                 gitlab_ci.load_metadata(dict(original, **{key: value}))
