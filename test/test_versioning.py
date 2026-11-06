@@ -1,5 +1,5 @@
 """验证共享版本规则、基础版本与工作流元数据。"""
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import subprocess
 import sys
@@ -11,11 +11,11 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import versioning
 
 COMMIT = "abcdef1" + "a" * 33
-VERSION = "0.0.1-ci.20261010t083000+sha.abcdef1"
+VERSION = "0.0.1-ci.20261010t163000+sha.abcdef1"
 
 
 class VersioningTests(unittest.TestCase):
-    # CI 与正式构建共享基础版本，CI 时间统一为 UTC，标签必须与基础版本一致。
+    # CI 与正式构建共享基础版本，CI 版本使用北京时间，发布时间保留 UTC，标签必须与基础版本一致。
     def test_metadata_and_stable_tag(self):
         result = versioning.build_metadata("ci", COMMIT, "0.0.1", "2026-10-10T16:30:00+08:00")
         self.assertEqual(result, dict(channel="ci", version=VERSION, commit=COMMIT,
@@ -34,6 +34,14 @@ class VersioningTests(unittest.TestCase):
         self.assertGreater(versioning.version_order("ci", second["version"]),
                            versioning.version_order("ci", first["version"]))
 
+    # 北京时间跨日时正确生成版本，UTC 发布时间仍表示同一瞬间。
+    def test_beijing_midnight_and_offset_equivalence(self):
+        utc = versioning.build_metadata("ci", COMMIT, "0.0.1", "2026-12-31T16:00:00Z")
+        local = versioning.build_metadata("ci", COMMIT, "0.0.1", "2027-01-01T00:00:00+08:00")
+        self.assertEqual(utc, local)
+        self.assertIn("20270101t000000", utc["version"])
+        self.assertEqual(utc["published_at"], "2026-12-31T16:00:00Z")
+
     # 新编号高于所有旧 CI 编号，之后按基础版本和时间排序，SHA 不参与先后判断。
     def test_order_and_legacy_migration(self):
         order = versioning.version_order
@@ -45,7 +53,7 @@ class VersioningTests(unittest.TestCase):
 
     # 日期、大小写、前导零、提交摘要和通道必须严格校验。
     def test_invalid_versions_and_commit(self):
-        for value in (VERSION.replace("20261010", "20260230"), VERSION.replace("083000", "253000"),
+        for value in (VERSION.replace("20261010", "20260230"), VERSION.replace("163000", "253000"),
                       VERSION.replace("-ci.", "-beta."), VERSION.replace("+sha.", "_sha."),
                       VERSION.replace("0.0.1", "00.0.1"), VERSION.replace("abcdef1", "ABCDEF1"),
                       "0.0.0-ci.0.1", "0.0.1"):
@@ -93,7 +101,7 @@ class VersioningTests(unittest.TestCase):
             self.assertEqual(data["commit"], COMMIT)
             self.assertEqual(data["image_tag"], data["version"].replace("+", "_"))
             stamp = datetime.fromisoformat(data["published_at"].replace("Z", "+00:00"))
-            self.assertIn(stamp.astimezone(timezone.utc).strftime("%Y%m%dt%H%M%S"), data["version"])
+            self.assertIn(stamp.astimezone(timezone(timedelta(hours=8))).strftime("%Y%m%dt%H%M%S"), data["version"])
             self.assertRegex(data["image_tag"], r"^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$")
 
 

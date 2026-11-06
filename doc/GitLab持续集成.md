@@ -23,7 +23,7 @@
 | 镜像 | `build-image` | 下载并直接复制二进制作业产物，仅受保护 `master` 的推送和手动流水线以双架构矩阵构建镜像，并分别验证版本身份、运行架构、管理进程与真实 PTY 收发 |
 | 发布 | `publish-r2` | 校验两架构构建身份与 SHA256，单次调用 `release.py prepare/publish --architectures amd64 arm64`，统一上传两架构二进制包、完整镜像包和更新清单到 R2 |
 
-两种构建作业使用同一份元数据，构建产物在作业页面保留 7 天。CI 版本沿用 `<VERSION>-ci.<UTC 时间>+sha.<7 位提交号>`；Docker 标签将 `+` 转为 `_`。
+两种构建作业使用同一份元数据，构建产物在作业页面保留 7 天。CI 版本沿用 `<VERSION>-ci.<北京时间>+sha.<7 位提交号>`；Docker 标签将 `+` 转为 `_`。
 
 二进制作业分别保存 `dist/amd64/`、`dist/arm64/` 下的 `slavesim`、`probe`、`metadata.json` 与 `SHA256SUMS`。镜像作业继续保留对应架构的这些文件，并增加 `slavesim-image.tar.gz`、`image-id.txt` 和 `smoke-runtime.log`，更新校验信息。
 
@@ -73,3 +73,5 @@ python3 -m unittest discover -s test -p 'test_*.py' -v
 ```
 
 本地测试只验证代码与发布规则；R2 发布状态以 GitLab 发布作业和公开清单、资产核验结果为准，不代表 ARM64 原生测试或现场设备联调已经完成。
+
+CI 版本与产物名称中的紧凑时间统一采用北京时间（UTC+8），清单 `published_at`/构建时间仍保存带 `Z` 的 UTC 时间。历史 UTC 编号不重命名；切换后新构建时间向前增加 8 小时，后续比较继续按编号时间排序。

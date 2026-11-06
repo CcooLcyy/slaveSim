@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import re
+
+BEIJING = timezone(timedelta(hours=8))
 
 SEMVER = r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
 LEGACY_CI = re.compile(r"0\.0\.0-ci\.([1-9][0-9]*)\.([1-9][0-9]*)")
@@ -25,7 +27,7 @@ def version_order(channel: str, version: str) -> tuple[int, ...]:
             try:
                 datetime.strptime(current[2], "%Y%m%dt%H%M%S")
             except ValueError as exc:
-                raise ValueError("CI 版本包含无效的 UTC 日期时间") from exc
+                raise ValueError("CI 版本包含无效的日期时间") from exc
             return (1, *map(int, current[1].split(".")), int(current[2].replace("t", "")))
     raise ValueError("版本号与发布通道不匹配：" + str(version))
 
@@ -76,7 +78,8 @@ def build_metadata(channel: str, commit: str, base_version: str,
             raise ValueError("正式版本标签必须与 VERSION 中的基础版本完全一致")
         version = base_version
     elif channel == "ci":
-        version = f"{base_version}-ci.{built:%Y%m%dt%H%M%S}+sha.{commit[:7]}"
+        stamp = built.astimezone(BEIJING).strftime("%Y%m%dt%H%M%S")
+        version = f"{base_version}-ci.{stamp}+sha.{commit[:7]}"
     else:
         raise ValueError("发布通道必须为 ci 或 stable")
     validate_commit(channel, version, commit)
