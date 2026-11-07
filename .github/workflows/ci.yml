@@ -1,4 +1,4 @@
-name: slaveSim 构建验证
+name: slaveSim 构建验证与 CI 发布
 
 on:
   pull_request:
@@ -11,8 +11,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: slavesim-ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: slavesim-ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 defaults:
   run:
@@ -140,8 +140,61 @@ jobs:
       - name: 上传架构产物
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: slavesim-linux-${{ matrix.arch }}-attempt-${{ github.run_attempt }}
+          name: slavesim-linux-${{ matrix.arch }}
           path: dist/slavesim-linux-${{ matrix.arch }}.tar
           if-no-files-found: error
           compression-level: 0
           retention-days: 7
+          overwrite: true
+
+  publish:
+    name: 发布双架构产物到 R2 CI
+    needs: [checks, build]
+    if: github.ref == 'refs/heads/master' && github.ref_protected && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    concurrency:
+      group: slavesim-r2-ci
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: 下载本次运行的两架构产物
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          pattern: slavesim-linux-*
+          path: ${{ runner.temp }}/slavesim-artifacts
+          merge-multiple: true
+
+      - name: 解包已验证的构建产物
+        run: |
+          for arch in amd64 arm64; do
+            mkdir -p "dist/$arch"
+            tar -xf "$RUNNER_TEMP/slavesim-artifacts/slavesim-linux-$arch.tar" -C "dist/$arch"
+          done
+
+      - name: 校验并发布 R2 CI
+        env:
+          VERSION: ${{ needs.checks.outputs.version }}
+          COMMIT: ${{ needs.checks.outputs.commit }}
+          BUILD_TIME: ${{ needs.checks.outputs.build_time }}
+          IMAGE_TAG: ${{ needs.checks.outputs.image_tag }}
+          CHANNEL: ${{ needs.checks.outputs.channel }}
+          # 将真实的 GitHub 分支、保护状态与事件传给现有发布入口。
+          CI_COMMIT_BRANCH: ${{ github.ref_name }}
+          CI_COMMIT_REF_PROTECTED: ${{ github.ref_protected && 'true' || 'false' }}
+          CI_PIPELINE_SOURCE: ${{ github.event_name == 'push' && 'push' || 'web' }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$COMMIT"
+          master=$(git ls-remote --exit-code origin refs/heads/master | cut -f1)
+          if [[ "$master" != "$COMMIT" ]]; then
+            echo 'master 已有新提交，跳过本次发布。'
+            exit 0
+          fi
+          aws --version
+          python3 scripts/gitlab_ci.py publish
