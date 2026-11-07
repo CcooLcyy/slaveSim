@@ -1,0 +1,147 @@
+name: slaveSim 构建验证
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: slavesim-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CI_COMMIT_SHA: ${{ github.sha }}
+
+jobs:
+  checks:
+    name: 版本元数据与通用测试
+    if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      version: ${{ steps.metadata.outputs.VERSION }}
+      commit: ${{ steps.metadata.outputs.COMMIT }}
+      build_time: ${{ steps.metadata.outputs.BUILD_TIME }}
+      image_tag: ${{ steps.metadata.outputs.IMAGE_TAG }}
+      channel: ${{ steps.metadata.outputs.CHANNEL }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: 生成两种架构共用的版本元数据
+        id: metadata
+        run: |
+          test "$(git rev-parse HEAD)" = "$CI_COMMIT_SHA"
+          python3 scripts/gitlab_ci.py metadata --output "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - name: 前端测试
+        run: |
+          # Node 22 的子进程报告可能被中文日志破坏，逐文件独立运行。
+          for file in test/*.test.mjs; do
+            node --test --experimental-test-isolation=none "$file"
+          done
+
+      - name: Python 工具测试
+        run: python3 -m unittest discover -s test -p 'test_*.py' -v
+
+  build:
+    name: Linux ${{ matrix.arch }} 构建与镜像验证
+    needs: checks
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    env:
+      TARGETARCH: ${{ matrix.arch }}
+      VERSION: ${{ needs.checks.outputs.version }}
+      COMMIT: ${{ needs.checks.outputs.commit }}
+      BUILD_TIME: ${{ needs.checks.outputs.build_time }}
+      IMAGE_TAG: ${{ needs.checks.outputs.image_tag }}
+      CHANNEL: ${{ needs.checks.outputs.channel }}
+      GOTOOLCHAIN: local
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: '1.24.x'
+          cache: false
+
+      - name: Go 静态检查和原生测试
+        run: |
+          test "$(git rev-parse HEAD)" = "$COMMIT"
+          go vet ./...
+          go test -race ./...
+
+      - name: 构建主程序与协议探针
+        run: python3 scripts/gitlab_ci.py build
+
+      - name: 构建并运行验证镜像
+        run: |
+          # 使用本次二进制和现有运行镜像定义，避免在镜像内重新编译。
+          dockerfile="$RUNNER_TEMP/slavesim.Dockerfile"
+          PYTHONPATH=scripts python3 - > "$dockerfile" <<'PY'
+          from pathlib import Path
+          from gitlab_ci import make_ci_dockerfile
+
+          print(make_ci_dockerfile(Path("Dockerfile").read_text(encoding="utf-8")), end="")
+          PY
+          {
+            cat .dockerignore
+            printf '\n!dist\n!dist/%s\n!dist/%s/slavesim\n!dist/%s/probe\n' "$TARGETARCH" "$TARGETARCH" "$TARGETARCH"
+          } > "$dockerfile.dockerignore"
+
+          image="slavesim:$IMAGE_TAG-$TARGETARCH"
+          docker buildx build --load --provenance=false --platform "linux/$TARGETARCH" \
+            --target ci-runtime --file "$dockerfile" --tag "$image" .
+          test "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$image")" = "linux/$TARGETARCH"
+          docker run --rm --network none --entrypoint python3 \
+            --mount "type=bind,source=$PWD/scripts/smoke_runtime.py,target=/smoke_runtime.py,readonly" \
+            --env "CI_EXPECTED_VERSION=$VERSION" --env "CI_EXPECTED_COMMIT=$COMMIT" \
+            --env "CI_EXPECTED_BUILD_TIME=$BUILD_TIME" --env "CI_EXPECTED_ARCH=$TARGETARCH" \
+            "$image" -B /smoke_runtime.py
+
+          output="dist/$TARGETARCH"
+          docker save "$image" | gzip -n > "$output/slavesim-image.tar.gz"
+          python3 scripts/update.py image-id --archive "$output/slavesim-image.tar.gz" --image "$image" \
+            > "$output/image-id.txt"
+
+      - name: 生成校验摘要并归档验证产物
+        run: |
+          cd "dist/$TARGETARCH"
+          sha256sum slavesim probe metadata.json slavesim-image.tar.gz image-id.txt > SHA256SUMS
+          # tar 保留二进制的执行权限。
+          tar -cf "../slavesim-linux-$TARGETARCH.tar" \
+            slavesim probe metadata.json slavesim-image.tar.gz image-id.txt SHA256SUMS
+
+      - name: 上传架构产物
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: slavesim-linux-${{ matrix.arch }}-attempt-${{ github.run_attempt }}
+          path: dist/slavesim-linux-${{ matrix.arch }}.tar
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
