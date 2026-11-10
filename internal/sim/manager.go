@@ -1,9 +1,12 @@
 package sim
 
 import (
+	"cmp"
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -85,6 +88,12 @@ func (m *Manager) apply(cfg *config.Config, save bool) error {
 	for _, b := range m.buses {
 		old[b.LinkPath] = b
 	}
+	oldConfigs := make(map[string][]config.Slave, len(old))
+	if m.cfg != nil {
+		for _, bus := range m.cfg.Buses {
+			oldConfigs[bus.Link] = bus.Slaves
+		}
+	}
 	var added []*Bus
 	rollback := func() {
 		for _, b := range added {
@@ -96,8 +105,23 @@ func (m *Manager) apply(cfg *config.Config, save bool) error {
 	next := make([]*Bus, 0, len(cfg.Buses))
 	replacements := make([][]*Slave, 0, len(cfg.Buses))
 	for _, bc := range cfg.Buses {
+		b := old[bc.Link]
+		previous := make(map[uint8]config.Slave)
+		running := make(map[uint8]*Slave)
+		if b != nil {
+			for _, sc := range oldConfigs[bc.Link] {
+				previous[sc.DeviceID] = sc
+			}
+			for _, sl := range b.Slaves() {
+				running[sl.DeviceID] = sl
+			}
+		}
 		slaves := make([]*Slave, 0, len(bc.Slaves))
 		for _, sc := range bc.Slaves {
+			if sl := running[sc.DeviceID]; sl != nil && sameSlaveConfig(previous[sc.DeviceID], sc) {
+				slaves = append(slaves, sl)
+				continue
+			}
 			sl, err := NewSlave(sc, time.Now())
 			if err != nil {
 				rollback()
@@ -108,7 +132,6 @@ func (m *Manager) apply(cfg *config.Config, save bool) error {
 			}
 			slaves = append(slaves, sl)
 		}
-		b := old[bc.Link]
 		if b == nil {
 			if !save {
 				if err := cleanupStaleLink(bc.Link); err != nil {
@@ -158,6 +181,35 @@ func (m *Manager) apply(cfg *config.Config, save bool) error {
 		m.log.Publish(eventbus.Event{Level: eventbus.LevelInfo, Summary: fmt.Sprintf("Web 配置已保存并应用，共 %d 路 RS485 总线、%d 个模拟设备", len(next), deviceCount)})
 	}
 	return nil
+}
+
+func sameSlaveConfig(a, b config.Slave) bool {
+	return a.DeviceID == b.DeviceID && a.ResponseDelayMs == b.ResponseDelayMs &&
+		cmp.Or(a.UnmappedPolicy, "exception") == cmp.Or(b.UnmappedPolicy, "exception") &&
+		reflect.DeepEqual(a.Model, b.Model) &&
+		slices.EqualFunc(a.Registers, b.Registers, func(a, b config.Register) bool {
+			return comparableRegister(a) == comparableRegister(b)
+		})
+}
+
+// 配置页面会展开省略的默认值及当前来源不使用的字段。
+func comparableRegister(r config.Register) config.Register {
+	function, _ := config.ParseFunction(r.Function)
+	r.Function = strconv.FormatUint(uint64(function), 16)
+	r.Type = cmp.Or(r.Type, "UINT16")
+	r.WordOrder = cmp.Or(r.WordOrder, "HL")
+	r.ByteOrder = cmp.Or(r.ByteOrder, "AB")
+	r.Access = cmp.Or(r.Access, "readonly")
+	source := r.Source
+	switch source.Kind {
+	case "sine":
+		r.Source = config.Source{Kind: source.Kind, Base: source.Base, Amplitude: source.Amplitude, PeriodMs: source.PeriodMs}
+	case "ramp", "random":
+		r.Source = config.Source{Kind: source.Kind, Min: source.Min, Max: source.Max, PeriodMs: source.PeriodMs}
+	default:
+		r.Source = config.Source{Kind: cmp.Or(source.Kind, "const"), Value: source.Value}
+	}
+	return r
 }
 
 // 初次启动只清理目标已消失的 PTY 软链接；仍有效的链接属于活跃资源。

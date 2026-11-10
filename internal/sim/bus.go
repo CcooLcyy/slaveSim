@@ -88,7 +88,7 @@ func (b *Bus) Info() (string, []*Slave) {
 	return b.Name, append([]*Slave(nil), b.order...)
 }
 
-// Replace 更新从站对象并清除旧对象上的手动覆盖，保留原来的 PTY。
+// Replace 切换总线名称及从站列表，保留原来的 PTY 和沿用对象的运行状态。
 func (b *Bus) Replace(name string, slaves []*Slave) {
 	b.mu.Lock()
 	defer b.mu.Unlock()

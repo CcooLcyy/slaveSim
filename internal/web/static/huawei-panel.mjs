@@ -166,7 +166,7 @@ export function createHuaweiPanel(root, options = {}) {
     body.append(controls); card.node.append(body);
     const explanation = element('details', 'huawei-explanation');
     explanation.append(element('summary', '', '查看仿真范围与控制规则说明'), element('p', '', '有功百分比与固定值、无功PF与Q/S分别采用最后一次成功写入的命令。百分比参照旧版华为协议以Pmax为基准；有功/无功梯度以Pn/Smax为基准。控制优先级、PF正负符号、非零反馈模式及状态枚举的版本迁移属于仿真假设。无功受Smax及馈入/吸收限值限制，采用有功优先。电压、频率变更更新电参，不模拟厂家保护、重启或电网潮流。身份、未建模告警、绝缘及时间等点保留模板值。'));
-    explanation.append(element('p', '', '当前版本按现有点表模拟4路PV、平衡三相。未实现参数只读；保存并应用配置会重建模型，重置临时命令及运行电量到模板初值。'));
+    explanation.append(element('p', '', '当前版本按现有点表模拟4路PV、平衡三相。未实现参数只读。保存并应用后，配置未变的从站保留当前场景、命令和电量，配置变更的从站按保存值重新初始化。'));
     card.node.append(explanation);
     return card;
   }

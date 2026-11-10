@@ -196,7 +196,7 @@ function modelEditor(parent, slave) {
     };
     disturbanceLabel.append(element('span', '', '轻微扰动'), disturbance); fields.append(disturbanceLabel);
     section.append(element('p', '', '额定容量为正数，支持 0.001 kW 精度，调整时同步缩放功率能力和相关初值。太阳可用直流功率默认等于额定容量；手动修改光照后保留自定义值。'));
-    section.append(fields, element('p', '', '这些参数随配置保存，运行页“应用场景”只临时修改当前运行。保存并应用配置会重建模型、重置临时命令及运行电量到模板初值；无模型的旧从站保持原数值来源规则。'));
+    section.append(fields, element('p', '', '这些参数随配置保存，运行页“应用场景”只临时修改当前运行。配置变更的从站保存后按配置初值重建模型，配置未变的从站保留当前场景、命令和电量。'));
   } else {
     section.append(element('p', '', `当前页面不支持模型 ${slave.model.kind || '未指定类型'} 的参数编辑`));
   }
@@ -347,7 +347,7 @@ form.onsubmit = async event => {
   try {
     await readResponse(await fetch('/api/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(draft) }));
     dirty = false;
-    message('配置已保存并应用；临时手动值已重置，行为模型按配置初值重建');
+    message('配置已保存并应用。配置未变的从站保留运行状态，变更的从站按保存值重新初始化。');
     console.info('多路 RS485 配置已保存并应用', { buses: draft.buses.length, devices: draft.buses.reduce((count, bus) => count + bus.slaves.length, 0) });
     window.dispatchEvent(new Event('config-applied'));
   } catch (error) {
