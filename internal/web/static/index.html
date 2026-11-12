@@ -430,6 +430,8 @@ refresh();
 setInterval(refresh, 2000);
 connectEvents();
 window.addEventListener('config-applied', () => { stateEpoch++; refresh(); });
+// 站号应答操作完成后，仅接受操作之后发出的状态请求。
+window.addEventListener('station-response-applied', () => { stateEpoch++; refresh(); });
 window.addEventListener('model-applied', refresh);
 </script>
 <script type="module" src="/page-tabs.mjs"></script>

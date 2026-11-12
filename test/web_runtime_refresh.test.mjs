@@ -38,6 +38,7 @@ function fixture() {
     context, requests,
     refresh: () => vm.runInContext('refresh()', context),
     applyConfig: () => window.dispatchEvent(new Event('config-applied')),
+    applyStationResponse: () => window.dispatchEvent(new Event('station-response-applied')),
     snapshots: () => events.filter(event => event.type === 'sim-state').map(event => event.detail),
     failures: () => events.filter(event => event.type === 'sim-state-error'),
     current: () => vm.runInContext('state', context),
@@ -67,6 +68,19 @@ test('配置应用后忽略旧epoch的响应，等待新配置反馈后再展示
   page.requests[1].complete(rebuilt); await settle();
   assert.deepEqual(page.snapshots(), [rebuilt]);
   assert.equal(page.current().buses[0].name, '新配置总线');
+});
+
+test('站号应答操作完成后丢弃操作完成前发出的轮询结果', async () => {
+  const page = fixture();
+  page.applyStationResponse();
+  assert.equal(page.requests.length, 2);
+  page.requests[0].complete(snapshot('操作前', 0));
+  await settle();
+  assert.deepEqual(page.snapshots(), []);
+  const updated = snapshot('操作后', 1);
+  page.requests[1].complete(updated);
+  await settle();
+  assert.deepEqual(page.snapshots(), [updated]);
 });
 
 test('过期请求失败不把已经恢复连接的新状态标记为中断', async () => {

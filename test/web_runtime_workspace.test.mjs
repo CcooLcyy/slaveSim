@@ -60,6 +60,7 @@ test('运行状态清空设备显示零台并移除旧反馈，之后可重新�
 function slave(id, modeled = true, active = 50) {
   return {
     device_id: id,
+    response_paused: false,
     ...(modeled ? { model: {
       kind: 'huawei_v3', active_kw: active, target_active_kw: active,
       reactive_kvar: 0, target_reactive_kvar: 0, power_factor: 1,
@@ -297,6 +298,85 @@ test('手动设置失败保留输入并显示文本错误，非法输入不会�
   assert.equal(applied, 0);
   for (const value of ['', ' ', 'NaN', 'Infinity']) { input.value = value; await button.onclick(); }
   assert.equal(calls, 1); assert.ok(find(entry, node => node.textContent === '请输入有效数字'));
+});
+
+test('站号应答操作仅提交目标总线的设备，并等待状态确认后切换按钮', async () => {
+  const calls = [];
+  let complete;
+  let applied = 0;
+  const { root, workspace } = fixture({
+    fetch: (url, request) => {
+      calls.push([url, request.method, JSON.parse(request.body)]);
+      return new Promise(resolve => { complete = resolve; });
+    },
+    onStationResponseApplied: () => applied++,
+  });
+  workspace.update(state());
+  const target = device(busCard(root, 'Huawei-V3'), 1);
+  const other = device(busCard(root, 'RS485-2'), 1);
+  const button = classes(target, 'station-response-button')[0];
+  const status = classes(target, 'station-response-status')[0];
+  assert.equal(button.textContent, '暂停应答');
+  assert.equal(status.textContent, '应答中');
+
+  const pause = button.onclick();
+  const duplicate = button.onclick();
+  workspace.update(state());
+  assert.equal(button.disabled, true);
+  assert.equal(calls.length, 1);
+  complete({ ok: true, json: async () => ({ result: 'ok' }) });
+  await Promise.all([pause, duplicate]);
+  assert.equal(button.textContent, '暂停应答');
+  assert.equal(button.disabled, true);
+  workspace.setError();
+  assert.match(classes(target, 'station-response-message')[0].textContent, /正在重试/);
+
+  const paused = state();
+  paused.buses[0].slaves[0].response_paused = true;
+  workspace.update(paused);
+  assert.equal(button.textContent, '恢复应答');
+  assert.equal(button.disabled, false);
+  assert.equal(status.textContent, '应答已暂停');
+  assert.equal(classes(other, 'station-response-button')[0].textContent, '暂停应答');
+  assert.equal(classes(other, 'station-response-button')[0].disabled, false);
+  const resume = button.onclick();
+  complete({ ok: true, json: async () => ({ result: 'ok' }) });
+  await resume;
+  workspace.update(state());
+  assert.equal(button.textContent, '暂停应答');
+  assert.equal(button.disabled, false);
+  assert.equal(applied, 2);
+  assert.deepEqual(calls, [
+    ['/api/station-response', 'POST', { bus: 'Huawei-V3', device_id: 1, paused: true }],
+    ['/api/station-response', 'POST', { bus: 'Huawei-V3', device_id: 1, paused: false }],
+  ]);
+});
+
+test('站号应答操作失败保留已确认状态并允许重试', async () => {
+  let attempts = 0;
+  const { root, workspace } = fixture({
+    fetch: async () => {
+      attempts++;
+      if (attempts === 1) return { ok: false, status: 404, json: async () => ({ error: '从站已移除' }) };
+      return { ok: true, json: async () => ({ result: 'ok' }) };
+    },
+  });
+  workspace.update(state());
+  const target = device(busCard(root, 'RS485-2'), 1);
+  const button = classes(target, 'station-response-button')[0];
+  const message = classes(target, 'station-response-message')[0];
+  await button.onclick();
+  assert.equal(button.disabled, false);
+  assert.equal(button.textContent, '暂停应答');
+  assert.equal(message.textContent, '暂停应答失败：从站已移除');
+  assert.ok(hasClass(message, 'error'));
+  await button.onclick();
+  const paused = state();
+  paused.buses[1].slaves[0].response_paused = true;
+  workspace.update(paused);
+  assert.equal(attempts, 2);
+  assert.equal(message.textContent, '');
+  assert.equal(button.textContent, '恢复应答');
 });
 
 test('手动请求成功不清除请求期间继续编辑的新草稿', async () => {

@@ -150,6 +150,76 @@ func TestBusWriteThenReadBackOverPTY(t *testing.T) {
 	}
 }
 
+func TestBusPauseCancelsDelayedResponseAndKeepsOtherStationAvailable(t *testing.T) {
+	now := time.Now()
+	cfg := config.Slave{DeviceID: 1, ResponseDelayMs: 60000, Registers: []config.Register{{Function: "0x03", Address: 100}}}
+	sl, err := NewSlave(cfg, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.DeviceID, cfg.ResponseDelayMs = 2, 0
+	other, err := NewSlave(cfg, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	logs := eventbus.NewLog(64)
+	events, cancel := logs.Subscribe()
+	defer cancel()
+	bus := NewBus("test", t.TempDir()+"/tty0", []*Slave{sl, other}, logs)
+	if err := bus.Open(); err != nil {
+		t.Fatal(err)
+	}
+	defer bus.Close()
+	bus.Start()
+	f, err := os.OpenFile(bus.SlavePath(), os.O_RDWR, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	first := req(1, modbus.FuncReadHoldingRegs, 100, 1)
+	if _, err := f.Write(first); err != nil {
+		t.Fatal(err)
+	}
+	waitForFirstRX := func(paused bool) {
+		timer := time.NewTimer(2 * time.Second)
+		defer timer.Stop()
+		for {
+			select {
+			case event := <-events:
+				if event.DeviceID == 1 && event.Direction == eventbus.DirectionRx && event.Frame == modbus.Hex(first) {
+					if paused && event.Summary != "从站已暂停应答，已丢弃请求" {
+						t.Fatalf("暂停期间的接收日志未记录丢弃原因: %+v", event)
+					}
+					return
+				}
+			case <-timer.C:
+				t.Fatal("未记录站号 1 的接收报文")
+			}
+		}
+	}
+	waitForFirstRX(false)
+	sl.SetResponsePaused(true)
+	if _, err := f.Write(first); err != nil {
+		t.Fatal(err)
+	}
+	waitForFirstRX(true)
+	sl.SetResponsePaused(false)
+	if _, err := f.Write(req(2, modbus.FuncReadHoldingRegs, 100, 1)); err != nil {
+		t.Fatal(err)
+	}
+	response, err := readWithTimeout(f, 2*time.Second)
+	want := modbus.AppendCRC([]byte{2, modbus.FuncReadHoldingRegs, 2, 0, 0})
+	if err != nil || modbus.Hex(response) != modbus.Hex(want) {
+		t.Fatalf("站号 2 的应答应通过原串口及时返回: %s (%v)", modbus.Hex(response), err)
+	}
+	for _, event := range logs.Recent() {
+		if event.DeviceID == 1 && event.Direction == eventbus.DirectionTx {
+			t.Fatalf("暂停期间的请求及取消的延迟应答不得发送: %+v", event)
+		}
+	}
+}
+
 func TestBusCloseWithIdleConnectedClient(t *testing.T) {
 	bus := newPTYBus(t)
 	f, err := os.OpenFile(bus.SlavePath(), os.O_RDWR, 0)

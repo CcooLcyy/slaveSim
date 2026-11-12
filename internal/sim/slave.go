@@ -65,6 +65,7 @@ type Result struct {
 	IsException bool
 	// ExceptionCode 是异常码，仅在 IsException 为真时有意义。
 	ExceptionCode byte
+	pauseSignal   <-chan struct{}
 }
 
 // Slave 是一个 Modbus RTU 从站。
@@ -78,6 +79,7 @@ type Slave struct {
 	mu          sync.Mutex
 	model       *huaweiDevice
 	requestTime time.Time
+	pauseSignal chan struct{} // 应答期间打开；暂停时关闭并清空，以取消待发送的应答。
 }
 
 // NewSlave 由配置构造一个从站。
@@ -86,6 +88,7 @@ func NewSlave(cfg config.Slave, now time.Time) (*Slave, error) {
 		DeviceID:      cfg.DeviceID,
 		ResponseDelay: time.Duration(cfg.ResponseDelayMs) * time.Millisecond,
 		areas:         map[Area]map[uint16]slot{},
+		pauseSignal:   make(chan struct{}),
 	}
 	switch cfg.UnmappedPolicy {
 	case "zero":
@@ -182,10 +185,25 @@ func (s *Slave) Find(function byte, address uint16) *Register {
 	return sl.reg
 }
 
+// SetResponsePaused 切换当前从站的协议应答，保留寄存器和行为模型。
+func (s *Slave) SetResponsePaused(paused bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if paused == (s.pauseSignal == nil) {
+		return
+	}
+	if paused {
+		close(s.pauseSignal)
+		s.pauseSignal = nil
+	} else {
+		s.pauseSignal = make(chan struct{})
+	}
+}
+
 // Handle 处理一个请求帧。
 //
-// 不响应的情形严格对齐真实设备：站号不符、CRC 校验失败、报文结构非法、
-// 以及广播地址（广播要执行写操作但不响应）。
+// 暂停应答时丢弃所有请求。正常应答时，站号不符、CRC 校验失败、报文结构非法
+// 以及广播地址均不返回应答（有效的广播写操作仍然执行）。
 func (s *Slave) Handle(frame []byte) Result {
 	return s.HandleAt(frame, time.Now())
 }
@@ -194,6 +212,9 @@ func (s *Slave) Handle(frame []byte) Result {
 func (s *Slave) HandleAt(frame []byte, now time.Time) Result {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.pauseSignal == nil {
+		return Result{DropReason: "从站已暂停应答，已丢弃请求"}
+	}
 	s.requestTime = now
 	if s.model != nil {
 		s.model.advance(now)
@@ -227,6 +248,8 @@ func (s *Slave) HandleAt(frame []byte, now time.Time) Result {
 		// 广播不产生响应；写操作已经在 dispatch 中生效。
 		res.Response = nil
 		res.DropReason = "广播地址，已执行写操作但不响应"
+	} else {
+		res.pauseSignal = s.pauseSignal
 	}
 	return res
 }
@@ -514,11 +537,12 @@ func (s *Slave) Step(now time.Time) string {
 }
 
 type SlaveSample struct {
-	Model    *HuaweiView
-	Values   []float64
-	Raw      [][]uint16
-	Writable []bool
-	Managed  []bool
+	ResponsePaused bool
+	Model          *HuaweiView
+	Values         []float64
+	Raw            [][]uint16
+	Writable       []bool
+	Managed        []bool
 }
 
 // Sample 原子采集整台设备，避免网页和协议看到不同步的P/Q或原始值。
@@ -528,7 +552,7 @@ func (s *Slave) Sample(now time.Time) SlaveSample {
 	if s.model != nil {
 		s.model.advance(now)
 	}
-	view := SlaveSample{}
+	view := SlaveSample{ResponsePaused: s.pauseSignal == nil}
 	if s.model != nil {
 		view.Model = s.model.view()
 	}

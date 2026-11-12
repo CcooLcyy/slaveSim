@@ -11,6 +11,7 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"strings"
 	"time"
 
 	"slavesim/internal/config"
@@ -37,9 +38,10 @@ type RegisterView struct {
 
 // SlaveView 是界面上的一个从站。
 type SlaveView struct {
-	DeviceID  int             `json:"device_id"`
-	Registers []RegisterView  `json:"registers"`
-	Model     *sim.HuaweiView `json:"model,omitempty"`
+	DeviceID       int             `json:"device_id"`
+	ResponsePaused bool            `json:"response_paused"`
+	Registers      []RegisterView  `json:"registers"`
+	Model          *sim.HuaweiView `json:"model,omitempty"`
 }
 
 // BusView 是界面上的一条总线。
@@ -73,6 +75,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/state", s.handleState)
 	mux.HandleFunc("/api/events", s.handleEvents)
 	mux.HandleFunc("/api/manual", s.handleManual)
+	mux.HandleFunc("/api/station-response", s.handleStationResponse)
 	mux.HandleFunc("/api/scenario", s.handleScenario)
 	mux.HandleFunc("/api/config", s.handleConfig)
 	mux.HandleFunc("/api/device-templates", s.handleDeviceTemplates)
@@ -100,7 +103,11 @@ func (s *Server) Snapshot() State {
 			}
 			for _, sl := range slaves {
 				sample := sl.Sample(now)
-				sv := SlaveView{DeviceID: int(sl.DeviceID), Model: sample.Model}
+				sv := SlaveView{
+					DeviceID:       int(sl.DeviceID),
+					ResponsePaused: sample.ResponsePaused,
+					Model:          sample.Model,
+				}
 				for i, reg := range sl.Registers() {
 					raw := sample.Raw[i]
 					tag, unit := reg.Tag, reg.Unit
@@ -222,6 +229,56 @@ func (s *Server) handleManual(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "未找到对应的总线或从站"})
 	})
+}
+
+func (s *Server) handleStationResponse(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", "POST")
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "只支持 POST"})
+		return
+	}
+	var req struct {
+		Bus      string `json:"bus"`
+		DeviceID int    `json:"device_id"`
+		Paused   *bool  `json:"paused"`
+	}
+	if err := decodeRequest(w, r, &req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("请求体解析失败: %v", err)})
+		return
+	}
+	req.Bus = strings.TrimSpace(req.Bus)
+	if req.Bus == "" || req.DeviceID < 1 || req.DeviceID > 247 || req.Paused == nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "需要指定总线名称、1 至 247 的站号和布尔值 paused"})
+		return
+	}
+
+	found := false
+	s.manager.WithBuses(func(buses []*sim.Bus) {
+		for _, b := range buses {
+			name, slaves := b.Info()
+			if name != req.Bus {
+				continue
+			}
+			for _, sl := range slaves {
+				if int(sl.DeviceID) == req.DeviceID {
+					sl.SetResponsePaused(*req.Paused)
+					found = true
+					return
+				}
+			}
+			return
+		}
+	})
+	if !found {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "未找到对应的总线或从站"})
+		return
+	}
+	summary := "从站已恢复应答"
+	if *req.Paused {
+		summary = "从站已暂停应答"
+	}
+	s.log.Publish(eventbus.Event{Level: eventbus.LevelInfo, Bus: req.Bus, DeviceID: req.DeviceID, Summary: summary})
+	writeJSON(w, http.StatusOK, map[string]string{"result": "ok"})
 }
 
 // decodeRequest 拒绝超大、未知字段与尾随对象，避免控制请求含义不明确。

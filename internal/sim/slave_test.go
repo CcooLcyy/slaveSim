@@ -119,6 +119,39 @@ func TestWriteThenReadBackHoldingRegister(t *testing.T) {
 	}
 }
 
+func TestPauseAndResumeStationResponsePreservesRegisters(t *testing.T) {
+	s := newTestSlave(t)
+	const address = 40120
+	read := req(1, modbus.FuncReadHoldingRegs, address, 1)
+	write := req(1, modbus.FuncWriteSingleReg, address, 1234)
+	if res := s.Handle(write); modbus.Hex(res.Response) != modbus.Hex(write) {
+		t.Fatalf("默认应答时写入失败: %+v", res)
+	}
+
+	s.SetResponsePaused(true)
+	for _, frame := range [][]byte{
+		read,
+		req(1, modbus.FuncWriteSingleReg, address, 2345),
+		req(0, modbus.FuncWriteSingleReg, address, 3456),
+	} {
+		if res := s.Handle(frame); res.Response != nil || res.DropReason == "" {
+			t.Fatalf("暂停时应丢弃请求 %s: %+v", modbus.Hex(frame), res)
+		}
+	}
+
+	s.SetResponsePaused(false)
+	if got := respRegs(t, s.Handle(read).Response); len(got) != 1 || got[0] != 1234 {
+		t.Fatalf("恢复后应读回暂停前的值 1234，实际为 %v", got)
+	}
+	write = req(1, modbus.FuncWriteSingleReg, address, 4567)
+	if res := s.Handle(write); modbus.Hex(res.Response) != modbus.Hex(write) {
+		t.Fatalf("恢复应答后写入失败: %+v", res)
+	}
+	if got := respRegs(t, s.Handle(read).Response); len(got) != 1 || got[0] != 4567 {
+		t.Fatalf("恢复后应读回新写入的值 4567，实际为 %v", got)
+	}
+}
+
 // 验证 0x10 写多寄存器后能被 0x03 读回（含 32 位寄存器的双字回读）。
 func TestWriteMultipleThenReadBack(t *testing.T) {
 	s := newTestSlave(t)

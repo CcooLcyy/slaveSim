@@ -25,6 +25,90 @@ func configFixture(t *testing.T) (config.Config, string) {
 	return c, filepath.Join(dir, "config.json")
 }
 
+func TestStationResponseAPIChangesOnlyTargetRuntimeState(t *testing.T) {
+	c, path := configFixture(t)
+	c.Buses[0].Slaves = append(c.Buses[0].Slaves, config.Slave{DeviceID: 2})
+	logs := eventbus.NewLog(64)
+	m, err := sim.NewManager(path, &c, logs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer m.Close()
+	before := m.Config()
+	handler := New(m, logs).Handler()
+	request := func(method, endpoint, body string) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, httptest.NewRequest(method, endpoint, bytes.NewBufferString(body)))
+		return w
+	}
+	state := func() (string, [2]bool) {
+		w := request(http.MethodGet, "/api/state", "")
+		var got struct {
+			Buses []struct {
+				SlavePath string `json:"slave_path"`
+				Slaves    []struct {
+					ResponsePaused *bool `json:"response_paused"`
+				} `json:"slaves"`
+			} `json:"buses"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+			t.Fatal(err)
+		}
+		if w.Code != http.StatusOK || len(got.Buses) != 1 || got.Buses[0].SlavePath == "" || len(got.Buses[0].Slaves) != 2 {
+			t.Fatalf("总线运行状态异常: %d %s", w.Code, w.Body.String())
+		}
+		slaves := got.Buses[0].Slaves
+		if slaves[0].ResponsePaused == nil || slaves[1].ResponsePaused == nil {
+			t.Fatalf("响应缺少从站应答状态: %s", w.Body.String())
+		}
+		return got.Buses[0].SlavePath, [2]bool{*slaves[0].ResponsePaused, *slaves[1].ResponsePaused}
+	}
+	ptyPath, initial := state()
+	if initial != [2]bool{false, false} {
+		t.Fatalf("从站应默认应答: %v", initial)
+	}
+	const endpoint = "/api/station-response"
+	for _, tc := range []struct {
+		method, body string
+		status       int
+	}{
+		{http.MethodGet, "", http.StatusMethodNotAllowed},
+		{http.MethodPost, `{"bus":"","device_id":1,"paused":true}`, http.StatusBadRequest},
+		{http.MethodPost, `{"bus":"RS485-1","device_id":257,"paused":true}`, http.StatusBadRequest},
+		{http.MethodPost, `{"bus":"RS485-1","device_id":1}`, http.StatusBadRequest},
+		{http.MethodPost, `{"bus":"RS485-1","device_id":1,"paused":null}`, http.StatusBadRequest},
+		{http.MethodPost, `{"bus":"其他总线","device_id":1,"paused":true}`, http.StatusNotFound},
+		{http.MethodPost, `{"bus":"RS485-1","device_id":3,"paused":true}`, http.StatusNotFound},
+	} {
+		if w := request(tc.method, endpoint, tc.body); w.Code != tc.status {
+			t.Errorf("请求 %s %s 的状态码为 %d，期望 %d: %s", tc.method, tc.body, w.Code, tc.status, w.Body.String())
+		}
+	}
+	if currentPTY, paused := state(); currentPTY != ptyPath || paused != initial {
+		t.Fatalf("无效请求改变了总线或从站状态: %s %v", currentPTY, paused)
+	}
+	for _, tc := range []struct {
+		body   string
+		paused bool
+	}{
+		{`{"bus":"RS485-1","device_id":1,"paused":true}`, true},
+		{`{"bus":"RS485-1","device_id":1,"paused":true}`, true},
+		{`{"bus":"RS485-1","device_id":1,"paused":false}`, false},
+	} {
+		w := request(http.MethodPost, endpoint, tc.body)
+		var reply map[string]string
+		if err := json.Unmarshal(w.Body.Bytes(), &reply); err != nil || w.Code != http.StatusOK || reply["result"] != "ok" {
+			t.Fatalf("切换从站应答失败: %d %s", w.Code, w.Body.String())
+		}
+		if currentPTY, paused := state(); currentPTY != ptyPath || paused != [2]bool{tc.paused, false} {
+			t.Fatalf("总线或从站状态异常: %s %v", currentPTY, paused)
+		}
+		if !reflect.DeepEqual(before, m.Config()) {
+			t.Fatal("切换应答改变了持久配置")
+		}
+	}
+}
+
 func TestConfigurationAPIAppliesAndPreservesPTY(t *testing.T) {
 	c, path := configFixture(t)
 	logs := eventbus.NewLog(64)

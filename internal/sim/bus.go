@@ -211,7 +211,7 @@ func (b *Bus) handleFrame(frame []byte) {
 	name, order, slaves := b.Name, b.order, b.slaves
 	b.mu.RUnlock()
 
-	// 广播：对全部从站执行写操作，但按规范不产生任何响应。
+	// 广播：由各从站独立处理，按规范不产生响应。
 	if modbus.IsBroadcast(id) {
 		for _, sl := range order {
 			_ = sl.Handle(frame)
@@ -222,7 +222,7 @@ func (b *Bus) handleFrame(frame []byte) {
 			DeviceID:  int(id),
 			Direction: eventbus.DirectionRx,
 			Frame:     modbus.Hex(frame),
-			Summary:   "广播地址，已对全部从站执行写操作，按规范不响应",
+			Summary:   "广播请求已分发，按规范不响应",
 		})
 		return
 	}
@@ -266,12 +266,25 @@ func (b *Bus) handleFrame(frame []byte) {
 
 	if sl.ResponseDelay > 0 {
 		timer := time.NewTimer(sl.ResponseDelay)
+		defer timer.Stop()
 		select {
 		case <-timer.C:
+		case <-res.pauseSignal:
 		case <-b.stopCh:
-			timer.Stop()
 			return
 		}
+	}
+
+	select {
+	case <-res.pauseSignal:
+		b.log.Publish(eventbus.Event{
+			Level:    eventbus.LevelWarn,
+			Bus:      name,
+			DeviceID: int(id),
+			Summary:  "从站已暂停应答，取消待发送的响应",
+		})
+		return
+	default:
 	}
 
 	if _, err := b.master.File().Write(res.Response); err != nil {

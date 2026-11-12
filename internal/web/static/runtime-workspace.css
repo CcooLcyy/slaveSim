@@ -44,6 +44,13 @@ nav[aria-label="页面切换"] button[aria-pressed=true] { color: var(--accent);
 .runtime-device-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding: 18px 22px; }
 .runtime-device-heading .device-identity { margin-right: auto; min-width: 0; }
 .static-device-title { margin: 0; padding: 18px 22px; font-size: 15px; }
+.station-response { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 0 22px 14px; font-size: 12px; }
+.station-response-status, .station-response-message { color: var(--muted); }
+.station-response-status[data-paused=true] { color: var(--warning); font-weight: 600; }
+.station-response-message { overflow-wrap: anywhere; }
+.station-response-message:empty { display: none; }
+.station-response-message.error { color: var(--danger); }
+.station-response-button { padding: 5px 10px; }
 .bus-is-empty .bus-devices::after { content: '此总线尚未配置设备，请在 RS485 配置中添加。'; display: block; padding: 18px 22px; border-top: 1px solid var(--border); color: var(--muted); }
 .runtime-empty { padding: 40px 24px; color: var(--muted); line-height: 1.6; }
 .device-model > .huawei-card { border: 0; border-radius: 0; }
@@ -128,4 +135,5 @@ nav[aria-label="页面切换"] button[aria-pressed=true] { color: var(--accent);
   .huawei-heading .huawei-toggle { order: 3; margin-left: auto; }
   .huawei-body { padding: 16px; gap: 16px; } .huawei-feedback { display: block; } .huawei-controls { grid-template-columns: 1fr; }
   .huawei-explanation { padding: 0 16px 16px; } .runtime-registers > summary { padding: 14px 16px; } .log-heading { padding: 14px; }
+  .station-response { padding-inline: 16px; }
 }

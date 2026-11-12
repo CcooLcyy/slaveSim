@@ -75,12 +75,57 @@ export function createRuntimeWorkspace(root, options = {}) {
     return entry;
   }
 
-  function makeDevice(bus, slave) {
-    const entry = { rows: new Map() };
-    entry.node = element('section', 'runtime-device'); entry.node.dataset.deviceId = String(slave.device_id);
+  function renderStationResponse(entry) {
+    const known = typeof entry.responsePaused === 'boolean';
+    const status = known ? (entry.responsePaused ? '应答已暂停' : '应答中') : '应答状态未知';
+    const action = entry.responsePaused ? '恢复应答' : '暂停应答';
+    if (entry.responseStatus.textContent !== status) entry.responseStatus.textContent = status;
+    entry.responseStatus.dataset.paused = String(entry.responsePaused === true);
+    if (entry.responseButton.textContent !== action) entry.responseButton.textContent = action;
+    entry.responseButton.hidden = !known;
+    entry.responseButton.disabled = !known || entry.responsePending || entry.awaitingResponseState;
+  }
+
+  function makeDevice(deviceId) {
+    const entry = { rows: new Map(), responsePending: false, awaitingResponseState: false };
+    entry.node = element('section', 'runtime-device'); entry.node.dataset.deviceId = String(deviceId);
     entry.header = element('div', 'device-header');
-    entry.staticTitle = element('h3', 'static-device-title', `Modbus 设备 · 站号 ${slave.device_id}`);
+    entry.staticTitle = element('h3', 'static-device-title', `Modbus 设备 · 站号 ${deviceId}`);
     entry.header.append(entry.staticTitle);
+    const responseControl = element('div', 'station-response');
+    entry.responseStatus = element('span', 'station-response-status');
+    entry.responseButton = element('button', 'station-response-button');
+    entry.responseButton.type = 'button';
+    entry.responseMessage = element('span', 'station-response-message');
+    entry.responseMessage.setAttribute('role', 'status');
+    responseControl.append(entry.responseStatus, entry.responseButton, entry.responseMessage);
+    entry.responseButton.onclick = async () => {
+      if (entry.responseButton.disabled) return;
+      const paused = !entry.responsePaused;
+      const action = entry.responseButton.textContent;
+      entry.responsePending = true;
+      entry.responseMessage.className = 'station-response-message';
+      entry.responseMessage.textContent = `正在${action}…`;
+      renderStationResponse(entry);
+      try {
+        const response = await fetch('/api/station-response', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bus: entry.bus, device_id: deviceId, paused }),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result?.error || `请求失败（${response.status}）`);
+        if (result?.result !== 'ok') throw new Error('服务器返回了无法识别的结果');
+        entry.awaitingResponseState = true;
+        entry.responseMessage.textContent = '正在确认应答状态…';
+        options.onStationResponseApplied?.();
+      } catch (error) {
+        entry.responseMessage.className = 'station-response-message error';
+        entry.responseMessage.textContent = `${action}失败：${error.message}`;
+      } finally {
+        entry.responsePending = false;
+        renderStationResponse(entry);
+      }
+    };
     entry.models = element('div', 'device-model');
     entry.panel = createHuaweiPanel(entry.models, { fetch, onApplied: options.onApplied, headerRoot: entry.header });
     entry.registers = element('details', 'register-group runtime-registers');
@@ -91,7 +136,7 @@ export function createRuntimeWorkspace(root, options = {}) {
     entry.message = element('p', 'register-message');
     entry.message.setAttribute('role', 'status'); entry.message.setAttribute('aria-live', 'polite');
     entry.registers.append(entry.scroll, entry.message);
-    entry.node.append(entry.header, entry.models, entry.registers);
+    entry.node.append(entry.header, responseControl, entry.models, entry.registers);
     return entry;
   }
 
@@ -171,8 +216,14 @@ export function createRuntimeWorkspace(root, options = {}) {
       for (const [id, device] of entry.devices) if (!ids.has(id)) { device.node.remove(); entry.devices.delete(id); }
       for (const slave of slaves) {
         let device = entry.devices.get(slave.device_id);
-        if (!device) { device = makeDevice(bus, slave); entry.devices.set(slave.device_id, device); entry.body.append(device.node); }
+        if (!device) { device = makeDevice(slave.device_id); entry.devices.set(slave.device_id, device); entry.body.append(device.node); }
         device.bus = bus.name;
+        device.responsePaused = slave.response_paused;
+        if (device.awaitingResponseState) {
+          device.awaitingResponseState = false;
+          device.responseMessage.textContent = '';
+        }
+        renderStationResponse(device);
         device.staticTitle.hidden = slave.model?.kind === 'huawei_v3';
         device.panel.update({ now: state.now, buses: [{ ...bus, slaves: [slave] }] });
         device.summary.textContent = `寄存器与手动设值 · ${(slave.registers || []).length} 项`;
@@ -201,7 +252,10 @@ export function createRuntimeWorkspace(root, options = {}) {
     if (!buses.size) { empty.hidden = false; empty.textContent = '读取运行状态失败，正在重试连接…'; }
     for (const entry of buses.values()) {
       entry.summary.textContent = '连接中断 · 反馈可能过期';
-      for (const device of entry.devices.values()) device.panel.setError();
+      for (const device of entry.devices.values()) {
+        device.panel.setError();
+        if (device.awaitingResponseState) device.responseMessage.textContent = '读取应答状态失败，正在重试…';
+      }
     }
   }
   return { update, reset, setError };
@@ -210,7 +264,11 @@ export function createRuntimeWorkspace(root, options = {}) {
 if (typeof document !== 'undefined') {
   const root = document.getElementById('buses');
   if (root) {
-    const workspace = createRuntimeWorkspace(root, { fetch: window.fetch.bind(window), onApplied: () => window.dispatchEvent(new Event('model-applied')) });
+    const workspace = createRuntimeWorkspace(root, {
+      fetch: window.fetch.bind(window),
+      onApplied: () => window.dispatchEvent(new Event('model-applied')),
+      onStationResponseApplied: () => window.dispatchEvent(new Event('station-response-applied')),
+    });
     window.addEventListener('sim-state', event => workspace.update(event.detail));
     window.addEventListener('sim-state-error', () => workspace.setError());
     window.addEventListener('config-applied', () => workspace.reset());
