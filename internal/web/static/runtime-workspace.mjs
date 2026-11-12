@@ -129,7 +129,7 @@ export function createRuntimeWorkspace(root, options = {}) {
     entry.models = element('div', 'device-model');
     entry.panel = createHuaweiPanel(entry.models, { fetch, onApplied: options.onApplied, headerRoot: entry.header });
     entry.registers = element('details', 'register-group runtime-registers');
-    entry.registers.dataset.deviceId = String(slave.device_id);
+    entry.registers.dataset.deviceId = String(deviceId);
     entry.summary = element('summary');
     entry.registers.append(entry.summary);
     entry.scroll = element('div', 'runtime-table-scroll');
