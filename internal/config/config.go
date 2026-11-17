@@ -40,6 +40,8 @@ type Slave struct {
 	UnmappedPolicy string `json:"unmapped_policy"`
 	// Model 可选地启用设备行为模型；为空时沿用原寄存器取值引擎。
 	Model *HuaweiModel `json:"model,omitempty"`
+	// QVoltage 可选地启用简化的无功电压联动。
+	QVoltage *QVoltageConfig `json:"q_voltage,omitempty"`
 	// Registers 是该从站对外提供的寄存器。
 	Registers []Register `json:"registers"`
 }
@@ -142,6 +144,10 @@ func (c *Config) Clone() *Config {
 			if s.Model != nil {
 				model := s.Model.Clone()
 				copyConfig.Buses[i].Slaves[j].Model = &model
+			}
+			if s.QVoltage != nil {
+				qVoltage := *s.QVoltage
+				copyConfig.Buses[i].Slaves[j].QVoltage = &qVoltage
 			}
 			copyConfig.Buses[i].Slaves[j].Registers = append([]Register(nil), s.Registers...)
 		}
@@ -260,6 +266,12 @@ func (c *Config) Validate() error {
 					}
 					occupied[key] = true
 				}
+			}
+			if err := s.ValidateQVoltage(); err != nil {
+				return fmt.Errorf("总线 %s 站号 %d 的无功电压联动: %w", b.Name, s.DeviceID, err)
+			}
+			if s.QVoltage != nil {
+				s.QVoltage.normalizeFunctions()
 			}
 			if s.Model != nil {
 				if err := s.ValidateModel(); err != nil {

@@ -1,4 +1,4 @@
-import { newBus, newRegister, normalizeConfig, validateDraft, sourceFields } from './config-model.mjs';
+import { newBus, newRegister, newQVoltage, normalizeConfig, validateDraft, sourceFields, qVoltagePoints, qVoltageParameters } from './config-model.mjs';
 import { scenarioFields, scenarioRequest } from './huawei-view.mjs';
 import { customDeviceType, createDeviceSlave, loadDeviceTemplates } from './device-templates.mjs';
 import { ratedCapacity, setRatedCapacity } from './huawei-capacity.mjs';
@@ -16,6 +16,7 @@ const slaveGroups = new WeakMap();
 const selectedDeviceTypes = new WeakMap();
 const capacityDrafts = new WeakMap();
 const capacityControls = new WeakMap();
+const disabledQVoltageDrafts = new WeakMap();
 let deviceTemplates = [];
 let templatesLoading = false;
 let templatesLoaded = false;
@@ -203,6 +204,49 @@ function modelEditor(parent, slave) {
   parent.append(section);
 }
 
+function qVoltageEditor(parent, slave, updateStationTitle) {
+  if (slave.model) return;
+  const toggle = element('label', 'config-toggle');
+  const enabled = element('input'); enabled.type = 'checkbox'; enabled.name = 'q_voltage_enabled';
+  enabled.checked = Boolean(slave.q_voltage);
+  toggle.append(enabled, element('span', '', '启用无功–电压联动'));
+
+  const section = element('section', 'model-editor');
+  const renderParameters = () => {
+    section.replaceChildren();
+    const scene = slave.q_voltage;
+    section.hidden = !scene;
+    if (!scene) return;
+    section.append(element('h5', '', '无功–电压联动 · 场景配置'));
+    section.append(element('p', '', '请在本从站的寄存器列表中配置三个不同的 UINT16 或 INT16 点，来源为固定值或手动初值。无功设定为读写保持寄存器，无功实测和并网点电压为只读。若无功下限小于 0，两个无功点须使用 INT16。工程量 = 原始值 × 倍率。'));
+    for (const { key, label, functions } of qVoltagePoints) {
+      const fields = element('div', 'config-grid');
+      field(fields, scene[key], 'function', `${label}功能码`, { choices: choices(functions) });
+      field(fields, scene[key], 'address', `${label}协议地址`, { numeric: true, integer: true, min: 0, max: 65535, required: true });
+      field(fields, scene[key], 'scale', `${label}倍率`, { numeric: true, required: true });
+      section.append(fields);
+    }
+    const fields = element('div', 'config-grid');
+    for (const { key, label } of qVoltageParameters) {
+      field(fields, scene, key, label, { numeric: true, required: true });
+    }
+    section.append(fields, element('p', '', '并网点电压 = 基准电压 + 电压灵敏度 × 无功实测值。保存并应用后生效。'));
+  };
+
+  enabled.onchange = () => {
+    if (enabled.checked) {
+      slave.q_voltage = disabledQVoltageDrafts.get(slave) || newQVoltage();
+      disabledQVoltageDrafts.delete(slave);
+    } else {
+      disabledQVoltageDrafts.set(slave, slave.q_voltage);
+      delete slave.q_voltage;
+    }
+    changed(); updateStationTitle(); renderParameters();
+  };
+  renderParameters();
+  parent.append(toggle, section);
+}
+
 function registerEditor(parent, slave, reg, index) {
   const details = element('details', 'register-editor');
   details.open = expandedRegisters.get(reg) ?? slave.registers.length <= 3;
@@ -274,7 +318,7 @@ function renderEditor() {
       const stationHeading = element('summary', 'editor-heading');
       const stationTitle = element('span', 'editor-title');
       const updateStationTitle = () => {
-        const model = slave.model?.kind === 'huawei_v3' ? '华为逆变器' : (slave.model?.kind || '自定义 Modbus 设备');
+        const model = slave.model?.kind === 'huawei_v3' ? '华为逆变器' : (slave.model?.kind || (slave.q_voltage ? '无功–电压联动' : '自定义 Modbus 设备'));
         stationTitle.textContent = `从站 ${slave.device_id} · ${model} · ${slave.registers.length} 个寄存器`;
       };
       updateStationTitle();
@@ -285,6 +329,7 @@ function renderEditor() {
       field(stationFields, slave, 'unmapped_policy', '未配置地址', { choices: choices([['exception', '返回异常码 0x02'], ['zero', '返回 0']]) });
       station.append(stationHeading, stationFields);
       modelEditor(station, slave);
+      qVoltageEditor(station, slave, updateStationTitle);
       const registers = element('details', 'register-group');
       // 直接读取上次节点，避免异步 toggle 事件在重绘时丢失展开状态。
       registers.open = registerGroups.get(slave)?.open ?? false;

@@ -78,6 +78,7 @@ type Slave struct {
 	order       []*Register
 	mu          sync.Mutex
 	model       *huaweiDevice
+	qVoltage    *qVoltageDevice
 	requestTime time.Time
 	pauseSignal chan struct{} // 应答期间打开；暂停时关闭并清空，以取消待发送的应答。
 }
@@ -152,6 +153,12 @@ func NewSlave(cfg config.Slave, now time.Time) (*Slave, error) {
 		}
 		s.model = newHuaweiDevice(*cfg.Model, s.order, now, cfg.DeviceID)
 	}
+	if cfg.QVoltage != nil {
+		if err := cfg.ValidateQVoltage(); err != nil {
+			return nil, err
+		}
+		s.qVoltage = newQVoltageDevice(*cfg.QVoltage, s, now)
+	}
 	return s, nil
 }
 
@@ -218,6 +225,9 @@ func (s *Slave) HandleAt(frame []byte, now time.Time) Result {
 	s.requestTime = now
 	if s.model != nil {
 		s.model.advance(now)
+	}
+	if s.qVoltage != nil {
+		s.qVoltage.advance(now)
 	}
 	if len(frame) < 4 {
 		return Result{DropReason: "报文长度不足，已丢弃"}
@@ -524,6 +534,9 @@ func (s *Slave) writeMultipleRegisters(frame []byte, id byte) Result {
 func (s *Slave) Step(now time.Time) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.qVoltage != nil {
+		s.qVoltage.advance(now)
+	}
 	if s.model == nil {
 		return ""
 	}
@@ -552,6 +565,9 @@ func (s *Slave) Sample(now time.Time) SlaveSample {
 	if s.model != nil {
 		s.model.advance(now)
 	}
+	if s.qVoltage != nil {
+		s.qVoltage.advance(now)
+	}
 	view := SlaveSample{ResponsePaused: s.pauseSignal == nil}
 	if s.model != nil {
 		view.Model = s.model.view()
@@ -560,6 +576,7 @@ func (s *Slave) Sample(now time.Time) SlaveSample {
 		raw := reg.RawRegisters(now)
 		value := reg.Value(now)
 		managed := s.model != nil && reg.Function == 3 && s.model.managed(reg.Address)
+		managed = managed || (s.qVoltage != nil && s.qVoltage.manages(reg))
 		if managed {
 			// 点表值与线上整数一致，避免网页显示模型计算的浮点尾数。
 			value = reg.DecodeWrite(raw)
@@ -583,6 +600,14 @@ func (s *Slave) SetPoint(fn byte, addr uint16, value float64, now time.Time) err
 	reg := s.Find(fn, addr)
 	if reg == nil {
 		return fmt.Errorf("未找到对应的寄存器")
+	}
+	if s.qVoltage != nil {
+		if s.qVoltage.manages(reg) {
+			return fmt.Errorf("无功与电压联动的派生量测不能直接手改")
+		}
+		if reg == s.qVoltage.command {
+			return s.qVoltage.setCommand(value, now)
+		}
 	}
 	if s.model == nil {
 		reg.SetManual(value)

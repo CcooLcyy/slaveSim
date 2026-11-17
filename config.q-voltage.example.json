@@ -1,0 +1,49 @@
+{
+  "buses": [
+    {
+      "name": "AVC-定电压",
+      "link": "/srv/serial-sim/tty0",
+      "slaves": [
+        {
+          "device_id": 1,
+          "q_voltage": {
+            "command": { "function": "0x03", "address": 2, "scale": 0.1 },
+            "measured_q": { "function": "0x03", "address": 1, "scale": 0.1 },
+            "voltage": { "function": "0x03", "address": 0, "scale": 0.1 },
+            "base_voltage_v": 220,
+            "volts_per_kvar": 0.25,
+            "min_kvar": -100,
+            "max_kvar": 100,
+            "ramp_kvar_per_second": 100
+          },
+          "registers": [
+            {
+              "function": "0x03",
+              "address": 0,
+              "type": "UINT16",
+              "access": "readonly",
+              "tag": "并网点电压",
+              "source": { "kind": "const", "value": 0 }
+            },
+            {
+              "function": "0x03",
+              "address": 1,
+              "type": "INT16",
+              "access": "readonly",
+              "tag": "无功实测",
+              "source": { "kind": "const", "value": 0 }
+            },
+            {
+              "function": "0x03",
+              "address": 2,
+              "type": "INT16",
+              "access": "readwrite",
+              "tag": "无功设定",
+              "source": { "kind": "manual", "value": 0 }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

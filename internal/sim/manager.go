@@ -130,6 +130,9 @@ func (m *Manager) apply(cfg *config.Config, save bool) error {
 			if sc.Model != nil {
 				m.log.Publish(eventbus.Event{Level: eventbus.LevelInfo, Bus: bc.Name, DeviceID: int(sc.DeviceID), Summary: fmt.Sprintf("华为逆变器行为模型已构造；轻微扰动=%t，控制将联动功率、电流、反馈和电量", sc.Model.DisturbanceActive())})
 			}
+			if sc.QVoltage != nil {
+				m.log.Publish(eventbus.Event{Level: eventbus.LevelInfo, Bus: bc.Name, DeviceID: int(sc.DeviceID), Summary: fmt.Sprintf("已构造无功电压联动场景：基准电压=%g V，灵敏度=%g V/kvar，无功范围=%g～%g kvar，斜率=%g kvar/s", sc.QVoltage.BaseVoltageV, sc.QVoltage.VoltsPerKvar, sc.QVoltage.MinKvar, sc.QVoltage.MaxKvar, sc.QVoltage.RampKvarPerSecond)})
+			}
 			slaves = append(slaves, sl)
 		}
 		if b == nil {
@@ -187,6 +190,7 @@ func sameSlaveConfig(a, b config.Slave) bool {
 	return a.DeviceID == b.DeviceID && a.ResponseDelayMs == b.ResponseDelayMs &&
 		cmp.Or(a.UnmappedPolicy, "exception") == cmp.Or(b.UnmappedPolicy, "exception") &&
 		reflect.DeepEqual(a.Model, b.Model) &&
+		reflect.DeepEqual(a.QVoltage, b.QVoltage) &&
 		slices.EqualFunc(a.Registers, b.Registers, func(a, b config.Register) bool {
 			return comparableRegister(a) == comparableRegister(b)
 		})
